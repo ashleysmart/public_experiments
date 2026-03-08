@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dice Forge</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <button id="open-saved-sets-button" class="drawer-handle" type="button" aria-label="Open saved sets">
+      Sets
+    </button>
+    <button id="drawer-backdrop" class="drawer-backdrop" type="button" aria-label="Close saved sets"></button>
+    <div class="dice-overlay" aria-live="polite">
+      <section class="dice-stage" aria-label="Animated dice tray">
+        <canvas id="dice-canvas" class="dice-stage__canvas" width="640" height="360"></canvas>
+        <div class="dice-stage__hud">
+          <div class="dice-stage__hud-top">
+            <p id="dice-stage-status" class="dice-stage__status">Select groups and roll.</p>
+            <div id="dice-stage-total" class="dice-stage__total">-</div>
+          </div>
+          <div class="dice-stage__hud-sides">
+            <div class="dice-stage__side dice-stage__side--left">
+              <p class="dice-stage__side-label">Group Totals</p>
+              <div id="dice-stage-detail" class="dice-stage__detail">No roll yet.</div>
+            </div>
+            <div class="dice-stage__side dice-stage__side--right">
+              <p class="dice-stage__side-label">Damage Totals</p>
+              <div id="dice-stage-breakdown" class="dice-stage__breakdown"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="page-shell">
+      <div id="groups-container" class="group-grid">
+        <button id="add-group-button" class="add-group-handle" type="button" aria-label="Add group">
+          <span class="add-group-handle__label" aria-hidden="true">New</span>
+          <span class="add-group-handle__plus" aria-hidden="true">+</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="history-sheet" class="history-sheet history-sheet--hidden">
+      <button id="toggle-history-button" class="history-sheet__handle" type="button" aria-label="Toggle history">
+        <span class="history-sheet__grabber"></span>
+        <span>History</span>
+      </button>
+      <div class="history-sheet__panel">
+        <div class="panel__header">
+          <h2>History</h2>
+          <button id="clear-history-button" class="button button--ghost" type="button">
+            Clear
+          </button>
+        </div>
+        <div id="history-container" class="history-list empty-state">
+          No rolls yet.
+        </div>
+      </div>
+    </div>
+
+    <div class="roll-float">
+      <button id="roll-mode-button" class="roll-mode" type="button" aria-label="Scroll to change roll mode and tap to roll">
+        <span class="roll-mode__orbit" aria-hidden="true">
+          <span class="roll-mode__die roll-mode__die--a">d6</span>
+          <span class="roll-mode__die roll-mode__die--b">d20</span>
+        </span>
+        <strong id="roll-mode-label">Normal</strong>
+        <span class="roll-mode__subline">Tap to roll</span>
+      </button>
+    </div>
+
+    <datalist id="damage-type-options">
+      <option value="acid"></option>
+      <option value="bludgeoning"></option>
+      <option value="cold"></option>
+      <option value="fire"></option>
+      <option value="force"></option>
+      <option value="lightning"></option>
+      <option value="necrotic"></option>
+      <option value="piercing"></option>
+      <option value="poison"></option>
+      <option value="psychic"></option>
+      <option value="radiant"></option>
+      <option value="slashing"></option>
+      <option value="thunder"></option>
+      <option value="healing"></option>
+      <option value="temporary hp"></option>
+      <option value="untyped"></option>
+    </datalist>
+
+    <template id="group-template">
+      <article class="group-card">
+        <div class="group-card__header">
+          <div class="group-card__tab">
+            <label class="field field--short">
+              <input data-field="shortName" type="text" maxlength="4" placeholder="GSWD" />
+            </label>
+            <span class="group-card__tab-abbr" data-role="tab-abbr" aria-hidden="true"></span>
+            <label class="group-card__select">
+              <input data-field="selected" type="checkbox" />
+            </label>
+          </div>
+          <div class="group-card__header-actions">
+            <button class="icon-button group-card__collapse-button" data-action="toggle-collapse" type="button" aria-label="Toggle group panel">
+              <span data-role="collapse-indicator">◂</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="group-card__body">
+          <div class="field-stack">
+            <label class="field">
+              <span>Group Name</span>
+              <input data-field="name" type="text" maxlength="32" />
+            </label>
+            <label class="field">
+              <span>Dice Equation</span>
+              <input data-field="equation" type="text" maxlength="80" placeholder="2d6+3 or d20+7" />
+            </label>
+            <label class="field">
+              <span>Damage Type</span>
+              <input
+                data-field="damageType"
+                type="text"
+                maxlength="24"
+                list="damage-type-options"
+                placeholder="slashing, fire, force"
+              />
+            </label>
+            <label class="field field--color">
+              <span>Color</span>
+              <input data-field="color" type="color" value="#d95f43" />
+            </label>
+          </div>
+
+          <p class="group-card__summary" data-role="summary"></p>
+          <div class="group-card__footer">
+            <button class="button button--danger group-card__delete-button" data-action="remove-group" type="button">
+              Delete Group
+            </button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <template id="history-entry-template">
+      <article class="history-entry">
+        <div class="history-entry__header">
+          <h3 data-role="title"></h3>
+          <span data-role="total" class="history-entry__total"></span>
+        </div>
+        <p data-role="meta" class="history-entry__meta"></p>
+        <div data-role="detail" class="history-entry__detail"></div>
+      </article>
+    </template>
+
+    <aside id="saved-sets-drawer" class="drawer" aria-hidden="true">
+      <div class="drawer__header">
+        <div>
+          <h2>Saved Sets</h2>
+          <p class="drawer__meta">Store and reload group layouts on this device.</p>
+        </div>
+        <button id="close-saved-sets-button" class="icon-button" type="button" aria-label="Close saved sets">
+          ×
+        </button>
+      </div>
+
+      <div class="drawer__save">
+        <label class="field">
+          <span>Set Name</span>
+          <input id="saved-set-name" type="text" maxlength="40" placeholder="Boss opener" />
+        </label>
+        <button id="save-current-set-button" class="button button--primary" type="button">
+          Save Current Set
+        </button>
+      </div>
+
+      <div id="saved-sets-list" class="saved-sets-list empty-state">
+        No saved sets.
+      </div>
+
+      <div class="drawer__json-actions">
+        <button id="export-groups-button" class="button button--ghost button--small" type="button">Export JSON</button>
+        <label class="button button--ghost button--small" for="import-groups-input">Import JSON</label>
+        <input id="import-groups-input" type="file" accept=".json,application/json" style="display:none" />
+      </div>
+    </aside>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="./group_storage.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
