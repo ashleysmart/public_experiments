@@ -253,21 +253,37 @@ h2 {
 }
 
 .d20-panel__roll {
-  appearance: none;
   border: 1px solid rgba(223, 229, 240, 0.18);
   border-radius: 18px;
   background:
     radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.16), transparent 34%),
     linear-gradient(180deg, rgba(123, 129, 141, 0.62), rgba(84, 89, 99, 0.76));
   color: #fff;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 10px;
+  position: relative;
   min-height: 0;
   width: 100%;
-  padding: 16px 14px;
   cursor: pointer;
+  overflow: hidden;
+}
+
+.d20-panel__canvas {
+  width: 100%;
+  height: 230px;
+  display: block;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #5f646d, #4f545d);
+}
+
+.d20-panel__hud {
+  position: absolute;
+  inset: 14px;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
 }
 
 .d20-panel__roll-label {
@@ -1363,6 +1379,10 @@ input[type="color"]::-moz-color-swatch {
     padding: 12px;
   }
 
+  .d20-panel__canvas {
+    height: 180px;
+  }
+
   .dice-stage {
     padding: 10px;
   }
@@ -1550,6 +1570,10 @@ input[type="color"]::-moz-color-swatch {
   .d20-panel__mode {
     font-size: 0.68rem;
     padding: 9px 6px;
+  }
+
+  .d20-panel__canvas {
+    height: 164px;
   }
 
   .dice-stage__canvas {

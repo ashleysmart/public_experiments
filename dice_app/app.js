@@ -82,6 +82,7 @@ const toggleHistoryButton = document.querySelector("#toggle-history-button");
 const d20Panel = document.querySelector("#d20-panel");
 const d20ModeButtons = Array.from(document.querySelectorAll(".d20-panel__mode"));
 const d20RollButton = document.querySelector("#d20-roll-button");
+const d20Canvas = document.querySelector("#d20-canvas");
 const d20PanelStatus = document.querySelector("#d20-panel-status");
 const d20PanelTotal = document.querySelector("#d20-panel-total");
 const d20PanelDetail = document.querySelector("#d20-panel-detail");
@@ -155,11 +156,30 @@ const diceStage = {
   resolveRoll: null,
 };
 
+const d20Stage = {
+  ready: false,
+  available: Boolean(window.THREE && d20Canvas),
+  renderer: null,
+  scene: null,
+  camera: null,
+  dice: [],
+  frameId: null,
+  lastTs: 0,
+  rolling: false,
+};
+
 function requestDiceStageFrame() {
   if (!diceStage.ready || diceStage.frameId) {
     return;
   }
   diceStage.frameId = window.requestAnimationFrame(stepDiceStage);
+}
+
+function requestD20StageFrame() {
+  if (!d20Stage.ready || d20Stage.frameId) {
+    return;
+  }
+  d20Stage.frameId = window.requestAnimationFrame(stepD20Stage);
 }
 
 function stopDiceStageFrame() {
@@ -168,6 +188,14 @@ function stopDiceStageFrame() {
   }
   window.cancelAnimationFrame(diceStage.frameId);
   diceStage.frameId = null;
+}
+
+function stopD20StageFrame() {
+  if (!d20Stage.frameId) {
+    return;
+  }
+  window.cancelAnimationFrame(d20Stage.frameId);
+  d20Stage.frameId = null;
 }
 
 function initializeDiceStage() {
@@ -269,6 +297,58 @@ function initializeDiceStage() {
   diceStage.renderer.render(diceStage.scene, diceStage.camera);
 }
 
+function initializeD20Stage() {
+  if (!d20Stage.available) {
+    if (d20Canvas) {
+      d20Canvas.classList.add("dice-stage__canvas--fallback");
+    }
+    return;
+  }
+
+  const { THREE } = window;
+  const renderer = new THREE.WebGLRenderer({
+    canvas: d20Canvas,
+    antialias: true,
+    alpha: false,
+  });
+  renderer.setClearColor(0x5a6068, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(
+    -STAGE_CAMERA_HALF_X,
+    STAGE_CAMERA_HALF_X,
+    STAGE_CAMERA_HALF_Z,
+    -STAGE_CAMERA_HALF_Z,
+    0.1,
+    200
+  );
+  camera.position.set(0, 30, 0);
+  camera.lookAt(0, 0, 0);
+  camera.up.set(0, 0, -1);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  keyLight.position.set(2, 20, 4);
+  scene.add(keyLight);
+
+  const tableMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 60),
+    new THREE.MeshPhongMaterial({ color: 0x666b74, shininess: 3 })
+  );
+  tableMesh.rotation.x = -Math.PI / 2;
+  tableMesh.position.y = STAGE_FLOOR - 0.01;
+  scene.add(tableMesh);
+
+  d20Stage.renderer = renderer;
+  d20Stage.scene = scene;
+  d20Stage.camera = camera;
+  d20Stage.ready = true;
+
+  resizeD20Stage();
+  window.addEventListener("resize", resizeD20Stage);
+  d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
+}
+
 function resizeDiceStage() {
   if (!diceStage.ready) {
     return;
@@ -285,6 +365,24 @@ function resizeDiceStage() {
   diceStage.camera.top = halfZ;
   diceStage.camera.bottom = -halfZ;
   diceStage.camera.updateProjectionMatrix();
+}
+
+function resizeD20Stage() {
+  if (!d20Stage.ready) {
+    return;
+  }
+
+  const width = Math.max(220, Math.round(d20Canvas.clientWidth || 320));
+  const height = Math.max(180, Math.round(d20Canvas.clientHeight || STAGE_CANVAS_HEIGHT));
+  d20Stage.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  d20Stage.renderer.setSize(width, height, false);
+  const halfX = STAGE_CAMERA_HALF_X;
+  const halfZ = halfX * (height / width);
+  d20Stage.camera.left = -halfX;
+  d20Stage.camera.right = halfX;
+  d20Stage.camera.top = halfZ;
+  d20Stage.camera.bottom = -halfZ;
+  d20Stage.camera.updateProjectionMatrix();
 }
 
 function makeStageFaceTexture(label, bgColor) {
@@ -696,6 +794,28 @@ function clearStageDice() {
   diceStage.dice = [];
 }
 
+function clearD20StageDice() {
+  if (!d20Stage.ready) {
+    return;
+  }
+
+  d20Stage.dice.forEach((die) => {
+    d20Stage.scene.remove(die.mesh);
+    const materials = Array.isArray(die.mesh.material) ? die.mesh.material : [die.mesh.material];
+    materials.forEach((material) => {
+      if (material.map) material.map.dispose();
+      material.dispose();
+    });
+    die.mesh.children.forEach((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+    die.mesh.geometry.dispose();
+  });
+
+  d20Stage.dice = [];
+}
+
 function createStageDice(result) {
   clearStageDice();
 
@@ -799,6 +919,72 @@ function startStageRoll(result) {
   });
   requestDiceStageFrame();
   return rollPromise;
+}
+
+function startD20StageRoll(value) {
+  if (!d20Stage.ready) {
+    return;
+  }
+
+  clearD20StageDice();
+  const die = createDieEntity(20, value, {
+    face: "#9ea4ae",
+    edge: "#535962",
+  });
+  d20Stage.scene.add(die.mesh);
+  d20Stage.dice = [die];
+  d20Stage.rolling = true;
+  d20Stage.lastTs = 0;
+
+  const wall = Math.floor(Math.random() * 4);
+  let startX;
+  let startZ;
+  let startVX;
+  let startVZ;
+  const spread = (Math.random() - 0.5) * (wall < 2 ? STAGE_BOUND_Z * 1.2 : STAGE_BOUND_X * 1.2);
+  const throwSpeed = 30 + Math.random() * 10;
+  const sideAngle = (Math.random() - 0.5) * 0.45;
+
+  if (wall === 0) {
+    startX = -(STAGE_BOUND_X + STAGE_RADIUS);
+    startZ = spread;
+    startVX = throwSpeed;
+    startVZ = sideAngle * throwSpeed;
+  } else if (wall === 1) {
+    startX = STAGE_BOUND_X + STAGE_RADIUS;
+    startZ = spread;
+    startVX = -throwSpeed;
+    startVZ = sideAngle * throwSpeed;
+  } else if (wall === 2) {
+    startX = spread;
+    startZ = -(STAGE_BOUND_Z + STAGE_RADIUS);
+    startVZ = throwSpeed;
+    startVX = sideAngle * throwSpeed;
+  } else {
+    startX = spread;
+    startZ = STAGE_BOUND_Z + STAGE_RADIUS;
+    startVZ = -throwSpeed;
+    startVX = sideAngle * throwSpeed;
+  }
+
+  die.settled = false;
+  die.stillFrames = 0;
+  die.snapping = false;
+  die.snapQ = null;
+  die.age = 0;
+  die.mesh.position.set(startX, STAGE_FLOOR + STAGE_RADIUS + 1.8 + Math.random() * 1.2, startZ);
+  die.mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+  const spin = 26 + Math.random() * 14;
+  const angle = Math.random() * Math.PI * 2;
+  die.vX = startVX + (Math.random() - 0.5) * 4;
+  die.vZ = startVZ + (Math.random() - 0.5) * 4;
+  die.vy = -4 - Math.random() * 3;
+  die.vRx = Math.cos(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
+  die.vRy = (Math.random() - 0.5) * spin * 2.1;
+  die.vRz = Math.sin(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
+  die.delay = 0;
+
+  requestD20StageFrame();
 }
 
 function updateStageDie(die, deltaSeconds) {
@@ -1007,6 +1193,38 @@ function stepDiceStage(timestamp) {
 
   diceStage.renderer.render(diceStage.scene, diceStage.camera);
   requestDiceStageFrame();
+}
+
+function stepD20Stage(timestamp) {
+  if (!d20Stage.ready) {
+    return;
+  }
+
+  d20Stage.frameId = null;
+
+  if (!d20Stage.lastTs) {
+    d20Stage.lastTs = timestamp;
+  }
+
+  const deltaSeconds = Math.min((timestamp - d20Stage.lastTs) / 1000, 0.032);
+  d20Stage.lastTs = timestamp;
+
+  if (d20Stage.rolling) {
+    const settledCount = d20Stage.dice.reduce(
+      (count, die) => count + (updateStageDie(die, deltaSeconds) ? 1 : 0),
+      0
+    );
+
+    if (settledCount === d20Stage.dice.length) {
+      d20Stage.rolling = false;
+      d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
+      stopD20StageFrame();
+      return;
+    }
+  }
+
+  d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
+  requestD20StageFrame();
 }
 
 function renderDiceStageSummary(result) {
@@ -1670,6 +1888,7 @@ function rollSelectedGroups() {
 function performD20PanelRoll() {
   state.d20LastResult = rollD20ByMode(state.d20Mode);
   renderD20Panel();
+  startD20StageRoll(state.d20LastResult.value);
 }
 
 function exportGroupsAsJson() {
@@ -1837,5 +2056,6 @@ importGroupsInput.addEventListener("change", (event) => {
 
 
 initializeDiceStage();
+initializeD20Stage();
 syncRollModeUi();
 render();
