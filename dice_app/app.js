@@ -163,6 +163,8 @@ function createStagePanel(config) {
     lastTs: 0,
     rolling: false,
     resolveRoll: null,
+    boundX: STAGE_BOUND_X,
+    boundZ: STAGE_BOUND_Z,
   };
 }
 
@@ -320,13 +322,19 @@ function resizeStagePanel(panel) {
   const height = Math.max(panel.canvasMinHeight, Math.round(panel.canvas.clientHeight || STAGE_CANVAS_HEIGHT));
   panel.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   panel.renderer.setSize(width, height, false);
-  const halfX = STAGE_CAMERA_HALF_X;
-  const halfZ = halfX * (height / width);
+
+  // Scale the frustum proportionally with canvas size so dice stay a constant
+  // pixel size regardless of window dimensions.
+  const halfX = STAGE_CAMERA_HALF_X * (width / STAGE_CANVAS_WIDTH);
+  const halfZ = STAGE_CAMERA_HALF_X * (height / STAGE_CANVAS_WIDTH);
   panel.camera.left = -halfX;
   panel.camera.right = halfX;
   panel.camera.top = halfZ;
   panel.camera.bottom = -halfZ;
   panel.camera.updateProjectionMatrix();
+
+  panel.boundX = halfX - STAGE_RADIUS - 0.05;
+  panel.boundZ = halfZ - STAGE_RADIUS - 0.05;
 }
 
 function makeStageFaceTexture(label, bgColor) {
@@ -793,28 +801,28 @@ function startStageRoll(result) {
     let startZ;
     let startVX;
     let startVZ;
-    const spread = (Math.random() - 0.5) * (wall < 2 ? STAGE_BOUND_Z * 1.2 : STAGE_BOUND_X * 1.2);
+    const spread = (Math.random() - 0.5) * (wall < 2 ? diceStage.boundZ * 1.2 : diceStage.boundX * 1.2);
     const throwSpeed = 32 + Math.random() * 12;
     const sideAngle = (Math.random() - 0.5) * 0.55;
 
     if (wall === 0) {
-      startX = -(STAGE_BOUND_X + STAGE_RADIUS);
+      startX = -(diceStage.boundX + STAGE_RADIUS);
       startZ = spread;
       startVX = throwSpeed;
       startVZ = sideAngle * throwSpeed;
     } else if (wall === 1) {
-      startX = STAGE_BOUND_X + STAGE_RADIUS;
+      startX = diceStage.boundX + STAGE_RADIUS;
       startZ = spread;
       startVX = -throwSpeed;
       startVZ = sideAngle * throwSpeed;
     } else if (wall === 2) {
       startX = spread;
-      startZ = -(STAGE_BOUND_Z + STAGE_RADIUS);
+      startZ = -(diceStage.boundZ + STAGE_RADIUS);
       startVZ = throwSpeed;
       startVX = sideAngle * throwSpeed;
     } else {
       startX = spread;
-      startZ = STAGE_BOUND_Z + STAGE_RADIUS;
+      startZ = diceStage.boundZ + STAGE_RADIUS;
       startVZ = -throwSpeed;
       startVX = sideAngle * throwSpeed;
     }
@@ -863,28 +871,28 @@ function startD20StageRoll(value) {
   let startZ;
   let startVX;
   let startVZ;
-  const spread = (Math.random() - 0.5) * (wall < 2 ? STAGE_BOUND_Z * 1.2 : STAGE_BOUND_X * 1.2);
+  const spread = (Math.random() - 0.5) * (wall < 2 ? d20Stage.boundZ * 1.2 : d20Stage.boundX * 1.2);
   const throwSpeed = 30 + Math.random() * 10;
   const sideAngle = (Math.random() - 0.5) * 0.45;
 
   if (wall === 0) {
-    startX = -(STAGE_BOUND_X + STAGE_RADIUS);
+    startX = -(d20Stage.boundX + STAGE_RADIUS);
     startZ = spread;
     startVX = throwSpeed;
     startVZ = sideAngle * throwSpeed;
   } else if (wall === 1) {
-    startX = STAGE_BOUND_X + STAGE_RADIUS;
+    startX = d20Stage.boundX + STAGE_RADIUS;
     startZ = spread;
     startVX = -throwSpeed;
     startVZ = sideAngle * throwSpeed;
   } else if (wall === 2) {
     startX = spread;
-    startZ = -(STAGE_BOUND_Z + STAGE_RADIUS);
+    startZ = -(d20Stage.boundZ + STAGE_RADIUS);
     startVZ = throwSpeed;
     startVX = sideAngle * throwSpeed;
   } else {
     startX = spread;
-    startZ = STAGE_BOUND_Z + STAGE_RADIUS;
+    startZ = d20Stage.boundZ + STAGE_RADIUS;
     startVZ = -throwSpeed;
     startVX = sideAngle * throwSpeed;
   }
@@ -909,7 +917,7 @@ function startD20StageRoll(value) {
   requestStageFrame(d20Stage);
 }
 
-function updateStageDie(die, deltaSeconds) {
+function updateStageDie(die, deltaSeconds, panel) {
   die.age += deltaSeconds;
   const floorY = STAGE_FLOOR + STAGE_RADIUS;
 
@@ -945,23 +953,23 @@ function updateStageDie(die, deltaSeconds) {
   die.mesh.position.x += die.vX * deltaSeconds;
   die.mesh.position.z += die.vZ * deltaSeconds;
 
-  if (die.mesh.position.x > STAGE_BOUND_X) {
-    die.mesh.position.x = STAGE_BOUND_X;
+  if (die.mesh.position.x > panel.boundX) {
+    die.mesh.position.x = panel.boundX;
     die.vX = -Math.abs(die.vX) * STAGE_BOUNCE_WALL;
     die.vRy += (Math.random() - 0.5) * 6;
   }
-  if (die.mesh.position.x < -STAGE_BOUND_X) {
-    die.mesh.position.x = -STAGE_BOUND_X;
+  if (die.mesh.position.x < -panel.boundX) {
+    die.mesh.position.x = -panel.boundX;
     die.vX = Math.abs(die.vX) * STAGE_BOUNCE_WALL;
     die.vRy += (Math.random() - 0.5) * 6;
   }
-  if (die.mesh.position.z > STAGE_BOUND_Z) {
-    die.mesh.position.z = STAGE_BOUND_Z;
+  if (die.mesh.position.z > panel.boundZ) {
+    die.mesh.position.z = panel.boundZ;
     die.vZ = -Math.abs(die.vZ) * STAGE_BOUNCE_WALL;
     die.vRy += (Math.random() - 0.5) * 6;
   }
-  if (die.mesh.position.z < -STAGE_BOUND_Z) {
-    die.mesh.position.z = -STAGE_BOUND_Z;
+  if (die.mesh.position.z < -panel.boundZ) {
+    die.mesh.position.z = -panel.boundZ;
     die.vZ = Math.abs(die.vZ) * STAGE_BOUNCE_WALL;
     die.vRy += (Math.random() - 0.5) * 6;
   }
@@ -1096,7 +1104,7 @@ function stepStagePanel(panel, timestamp) {
 
   if (panel.rolling) {
     const settledCount = panel.dice.reduce(
-      (count, die) => count + (updateStageDie(die, deltaSeconds) ? 1 : 0),
+      (count, die) => count + (updateStageDie(die, deltaSeconds, panel) ? 1 : 0),
       0
     );
 
