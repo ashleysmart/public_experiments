@@ -139,80 +139,93 @@ const STAGE_GROUP_PALETTE = [
   { face: "#9cab52", edge: "#505d1e" },
 ];
 
-const diceStage = {
-  ready: false,
-  available: Boolean(window.THREE && diceCanvas),
-  renderer: null,
-  scene: null,
-  camera: null,
-  ambient: null,
-  keyLight: null,
-  fillLight: null,
-  tableMesh: null,
-  dice: [],
-  frameId: null,
-  lastTs: 0,
-  rolling: false,
-  resolveRoll: null,
-};
-
-const d20Stage = {
-  ready: false,
-  available: Boolean(window.THREE && d20Canvas),
-  renderer: null,
-  scene: null,
-  camera: null,
-  dice: [],
-  frameId: null,
-  lastTs: 0,
-  rolling: false,
-};
-
-function requestDiceStageFrame() {
-  if (!diceStage.ready || diceStage.frameId) {
-    return;
-  }
-  diceStage.frameId = window.requestAnimationFrame(stepDiceStage);
+function createStagePanel(config) {
+  return {
+    ready: false,
+    available: Boolean(window.THREE && config.canvas),
+    canvas: config.canvas,
+    bgColor: config.bgColor ?? 0x1c1a17,
+    tableColor: config.tableColor ?? 0x2e2920,
+    tableShininess: config.tableShininess ?? 4,
+    ambientIntensity: config.ambientIntensity ?? 0.7,
+    keyIntensity: config.keyIntensity ?? 0.9,
+    fillIntensity: config.fillIntensity ?? 0,
+    showGrid: config.showGrid ?? false,
+    showBoundary: config.showBoundary ?? false,
+    enableCollisions: config.enableCollisions ?? false,
+    canvasMinWidth: config.canvasMinWidth ?? 320,
+    canvasMinHeight: config.canvasMinHeight ?? 220,
+    renderer: null,
+    scene: null,
+    camera: null,
+    dice: [],
+    frameId: null,
+    lastTs: 0,
+    rolling: false,
+    resolveRoll: null,
+  };
 }
 
-function requestD20StageFrame() {
-  if (!d20Stage.ready || d20Stage.frameId) {
+const diceStage = createStagePanel({
+  canvas: diceCanvas,
+  bgColor: 0x1c1a17,
+  tableColor: 0x2e2920,
+  tableShininess: 4,
+  ambientIntensity: 0.7,
+  keyIntensity: 0.9,
+  fillIntensity: 0.2,
+  showGrid: true,
+  showBoundary: true,
+  enableCollisions: true,
+  canvasMinWidth: 320,
+  canvasMinHeight: 220,
+});
+
+const d20Stage = createStagePanel({
+  canvas: d20Canvas,
+  bgColor: 0x5a6068,
+  tableColor: 0x666b74,
+  tableShininess: 3,
+  ambientIntensity: 0.78,
+  keyIntensity: 0.7,
+  fillIntensity: 0,
+  showGrid: false,
+  showBoundary: false,
+  enableCollisions: false,
+  canvasMinWidth: 220,
+  canvasMinHeight: 180,
+});
+
+function requestStageFrame(panel) {
+  if (!panel.ready || panel.frameId) {
     return;
   }
-  d20Stage.frameId = window.requestAnimationFrame(stepD20Stage);
+  panel.frameId = window.requestAnimationFrame((ts) => stepStagePanel(panel, ts));
 }
 
-function stopDiceStageFrame() {
-  if (!diceStage.frameId) {
+function stopStageFrame(panel) {
+  if (!panel.frameId) {
     return;
   }
-  window.cancelAnimationFrame(diceStage.frameId);
-  diceStage.frameId = null;
+  window.cancelAnimationFrame(panel.frameId);
+  panel.frameId = null;
 }
 
-function stopD20StageFrame() {
-  if (!d20Stage.frameId) {
-    return;
-  }
-  window.cancelAnimationFrame(d20Stage.frameId);
-  d20Stage.frameId = null;
-}
-
-function initializeDiceStage() {
-  if (!diceStage.available) {
-    if (diceCanvas) {
-      diceCanvas.classList.add("dice-stage__canvas--fallback");
+function initializeStagePanel(panel) {
+  if (!panel.available) {
+    if (panel.canvas) {
+      panel.canvas.classList.add("dice-stage__canvas--fallback");
     }
     return;
   }
 
   const { THREE } = window;
   const renderer = new THREE.WebGLRenderer({
-    canvas: diceCanvas,
+    canvas: panel.canvas,
     antialias: true,
     alpha: false,
   });
-  renderer.setClearColor(0x1c1a17, 1);
+  renderer.setClearColor(panel.bgColor, 1);
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(
@@ -227,162 +240,93 @@ function initializeDiceStage() {
   camera.lookAt(0, 0, 0);
   camera.up.set(0, 0, -1);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  scene.add(new THREE.AmbientLight(0xffffff, panel.ambientIntensity));
+  const keyLight = new THREE.DirectionalLight(0xffffff, panel.keyIntensity);
   keyLight.position.set(2, 20, 4);
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.2);
-  fillLight.position.set(-4, 8, -6);
-
-  scene.add(ambient);
   scene.add(keyLight);
-  scene.add(fillLight);
+
+  if (panel.fillIntensity > 0) {
+    const fillLight = new THREE.DirectionalLight(0xffffff, panel.fillIntensity);
+    fillLight.position.set(-4, 8, -6);
+    scene.add(fillLight);
+  }
 
   const tableMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(60, 60),
-    new THREE.MeshPhongMaterial({ color: 0x2e2920, shininess: 4 })
+    new THREE.MeshPhongMaterial({ color: panel.tableColor, shininess: panel.tableShininess })
   );
   tableMesh.rotation.x = -Math.PI / 2;
   tableMesh.position.y = STAGE_FLOOR - 0.01;
   scene.add(tableMesh);
 
-  for (let i = -8; i <= 8; i += 1) {
-    let geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(i, -0.005, -8),
-      new THREE.Vector3(i, -0.005, 8),
-    ]);
-    scene.add(
-      new THREE.Line(
-        geometry,
-        new THREE.LineBasicMaterial({ color: 0x3a3528, transparent: true, opacity: 0.4 })
-      )
-    );
+  if (panel.showGrid) {
+    for (let i = -8; i <= 8; i += 1) {
+      let geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(i, -0.005, -8),
+        new THREE.Vector3(i, -0.005, 8),
+      ]);
+      scene.add(
+        new THREE.Line(
+          geometry,
+          new THREE.LineBasicMaterial({ color: 0x3a3528, transparent: true, opacity: 0.4 })
+        )
+      );
 
-    geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-8, -0.005, i),
-      new THREE.Vector3(8, -0.005, i),
-    ]);
-    scene.add(
-      new THREE.Line(
-        geometry,
-        new THREE.LineBasicMaterial({ color: 0x3a3528, transparent: true, opacity: 0.4 })
-      )
-    );
-  }
-
-  const wallPoints = [
-    new THREE.Vector3(-STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
-    new THREE.Vector3(STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
-    new THREE.Vector3(STAGE_BOUND_X, -0.002, STAGE_BOUND_Z),
-    new THREE.Vector3(-STAGE_BOUND_X, -0.002, STAGE_BOUND_Z),
-    new THREE.Vector3(-STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
-  ];
-  scene.add(
-    new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(wallPoints),
-      new THREE.LineBasicMaterial({ color: 0x7a6a50 })
-    )
-  );
-
-  diceStage.renderer = renderer;
-  diceStage.scene = scene;
-  diceStage.camera = camera;
-  diceStage.ambient = ambient;
-  diceStage.keyLight = keyLight;
-  diceStage.fillLight = fillLight;
-  diceStage.tableMesh = tableMesh;
-  diceStage.ready = true;
-
-  resizeDiceStage();
-  window.addEventListener("resize", resizeDiceStage);
-  diceStage.renderer.render(diceStage.scene, diceStage.camera);
-}
-
-function initializeD20Stage() {
-  if (!d20Stage.available) {
-    if (d20Canvas) {
-      d20Canvas.classList.add("dice-stage__canvas--fallback");
+      geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-8, -0.005, i),
+        new THREE.Vector3(8, -0.005, i),
+      ]);
+      scene.add(
+        new THREE.Line(
+          geometry,
+          new THREE.LineBasicMaterial({ color: 0x3a3528, transparent: true, opacity: 0.4 })
+        )
+      );
     }
-    return;
   }
 
-  const { THREE } = window;
-  const renderer = new THREE.WebGLRenderer({
-    canvas: d20Canvas,
-    antialias: true,
-    alpha: false,
-  });
-  renderer.setClearColor(0x5a6068, 1);
+  if (panel.showBoundary) {
+    const wallPoints = [
+      new THREE.Vector3(-STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
+      new THREE.Vector3(STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
+      new THREE.Vector3(STAGE_BOUND_X, -0.002, STAGE_BOUND_Z),
+      new THREE.Vector3(-STAGE_BOUND_X, -0.002, STAGE_BOUND_Z),
+      new THREE.Vector3(-STAGE_BOUND_X, -0.002, -STAGE_BOUND_Z),
+    ];
+    scene.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(wallPoints),
+        new THREE.LineBasicMaterial({ color: 0x7a6a50 })
+      )
+    );
+  }
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(
-    -STAGE_CAMERA_HALF_X,
-    STAGE_CAMERA_HALF_X,
-    STAGE_CAMERA_HALF_Z,
-    -STAGE_CAMERA_HALF_Z,
-    0.1,
-    200
-  );
-  camera.position.set(0, 30, 0);
-  camera.lookAt(0, 0, 0);
-  camera.up.set(0, 0, -1);
+  panel.renderer = renderer;
+  panel.scene = scene;
+  panel.camera = camera;
+  panel.ready = true;
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.78));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
-  keyLight.position.set(2, 20, 4);
-  scene.add(keyLight);
-
-  const tableMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, 60),
-    new THREE.MeshPhongMaterial({ color: 0x666b74, shininess: 3 })
-  );
-  tableMesh.rotation.x = -Math.PI / 2;
-  tableMesh.position.y = STAGE_FLOOR - 0.01;
-  scene.add(tableMesh);
-
-  d20Stage.renderer = renderer;
-  d20Stage.scene = scene;
-  d20Stage.camera = camera;
-  d20Stage.ready = true;
-
-  resizeD20Stage();
-  window.addEventListener("resize", resizeD20Stage);
-  d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
+  resizeStagePanel(panel);
+  window.addEventListener("resize", () => resizeStagePanel(panel));
+  panel.renderer.render(panel.scene, panel.camera);
 }
 
-function resizeDiceStage() {
-  if (!diceStage.ready) {
+function resizeStagePanel(panel) {
+  if (!panel.ready) {
     return;
   }
 
-  const width = Math.max(320, Math.round(diceCanvas.clientWidth || STAGE_CANVAS_WIDTH));
-  const height = Math.max(220, Math.round(diceCanvas.clientHeight || STAGE_CANVAS_HEIGHT));
-  diceStage.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  diceStage.renderer.setSize(width, height, false);
+  const width = Math.max(panel.canvasMinWidth, Math.round(panel.canvas.clientWidth || STAGE_CANVAS_WIDTH));
+  const height = Math.max(panel.canvasMinHeight, Math.round(panel.canvas.clientHeight || STAGE_CANVAS_HEIGHT));
+  panel.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  panel.renderer.setSize(width, height, false);
   const halfX = STAGE_CAMERA_HALF_X;
   const halfZ = halfX * (height / width);
-  diceStage.camera.left = -halfX;
-  diceStage.camera.right = halfX;
-  diceStage.camera.top = halfZ;
-  diceStage.camera.bottom = -halfZ;
-  diceStage.camera.updateProjectionMatrix();
-}
-
-function resizeD20Stage() {
-  if (!d20Stage.ready) {
-    return;
-  }
-
-  const width = Math.max(220, Math.round(d20Canvas.clientWidth || 320));
-  const height = Math.max(180, Math.round(d20Canvas.clientHeight || STAGE_CANVAS_HEIGHT));
-  d20Stage.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  d20Stage.renderer.setSize(width, height, false);
-  const halfX = STAGE_CAMERA_HALF_X;
-  const halfZ = halfX * (height / width);
-  d20Stage.camera.left = -halfX;
-  d20Stage.camera.right = halfX;
-  d20Stage.camera.top = halfZ;
-  d20Stage.camera.bottom = -halfZ;
-  d20Stage.camera.updateProjectionMatrix();
+  panel.camera.left = -halfX;
+  panel.camera.right = halfX;
+  panel.camera.top = halfZ;
+  panel.camera.bottom = -halfZ;
+  panel.camera.updateProjectionMatrix();
 }
 
 function makeStageFaceTexture(label, bgColor) {
@@ -772,13 +716,13 @@ function createDieEntity(sides, value, colors) {
   };
 }
 
-function clearStageDice() {
-  if (!diceStage.ready) {
+function clearPanelDice(panel) {
+  if (!panel.ready) {
     return;
   }
 
-  diceStage.dice.forEach((die) => {
-    diceStage.scene.remove(die.mesh);
+  panel.dice.forEach((die) => {
+    panel.scene.remove(die.mesh);
     const materials = Array.isArray(die.mesh.material) ? die.mesh.material : [die.mesh.material];
     materials.forEach((material) => {
       if (material.map) material.map.dispose();
@@ -791,33 +735,11 @@ function clearStageDice() {
     die.mesh.geometry.dispose();
   });
 
-  diceStage.dice = [];
-}
-
-function clearD20StageDice() {
-  if (!d20Stage.ready) {
-    return;
-  }
-
-  d20Stage.dice.forEach((die) => {
-    d20Stage.scene.remove(die.mesh);
-    const materials = Array.isArray(die.mesh.material) ? die.mesh.material : [die.mesh.material];
-    materials.forEach((material) => {
-      if (material.map) material.map.dispose();
-      material.dispose();
-    });
-    die.mesh.children.forEach((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-    });
-    die.mesh.geometry.dispose();
-  });
-
-  d20Stage.dice = [];
+  panel.dice = [];
 }
 
 function createStageDice(result) {
-  clearStageDice();
+  clearPanelDice(diceStage);
 
   const diceValues = [];
   result.groupResults.forEach((groupResult, groupIndex) => {
@@ -917,7 +839,7 @@ function startStageRoll(result) {
   const rollPromise = new Promise((resolve) => {
     diceStage.resolveRoll = resolve;
   });
-  requestDiceStageFrame();
+  requestStageFrame(diceStage);
   return rollPromise;
 }
 
@@ -926,7 +848,7 @@ function startD20StageRoll(value) {
     return;
   }
 
-  clearD20StageDice();
+  clearPanelDice(d20Stage);
   const die = createDieEntity(20, value, {
     face: "#9ea4ae",
     edge: "#535962",
@@ -984,7 +906,7 @@ function startD20StageRoll(value) {
   die.vRz = Math.sin(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
   die.delay = 0;
 
-  requestD20StageFrame();
+  requestStageFrame(d20Stage);
 }
 
 function updateStageDie(die, deltaSeconds) {
@@ -1097,11 +1019,11 @@ function updateStageDie(die, deltaSeconds) {
   return false;
 }
 
-function resolveStageDiceCollisions() {
-  for (let i = 0; i < diceStage.dice.length; i += 1) {
-    for (let j = i + 1; j < diceStage.dice.length; j += 1) {
-      const first = diceStage.dice[i];
-      const second = diceStage.dice[j];
+function resolveStageDiceCollisions(panel) {
+  for (let i = 0; i < panel.dice.length; i += 1) {
+    for (let j = i + 1; j < panel.dice.length; j += 1) {
+      const first = panel.dice[i];
+      const second = panel.dice[j];
       if ((first.settled && second.settled) || first.snapping || second.snapping) {
         continue;
       }
@@ -1158,73 +1080,43 @@ function resolveStageDiceCollisions() {
   }
 }
 
-function stepDiceStage(timestamp) {
-  if (!diceStage.ready) {
+function stepStagePanel(panel, timestamp) {
+  if (!panel.ready) {
     return;
   }
 
-  diceStage.frameId = null;
+  panel.frameId = null;
 
-  if (!diceStage.lastTs) {
-    diceStage.lastTs = timestamp;
+  if (!panel.lastTs) {
+    panel.lastTs = timestamp;
   }
 
-  const deltaSeconds = Math.min((timestamp - diceStage.lastTs) / 1000, 0.032);
-  diceStage.lastTs = timestamp;
+  const deltaSeconds = Math.min((timestamp - panel.lastTs) / 1000, 0.032);
+  panel.lastTs = timestamp;
 
-  if (diceStage.rolling) {
-    const settledCount = diceStage.dice.reduce(
+  if (panel.rolling) {
+    const settledCount = panel.dice.reduce(
       (count, die) => count + (updateStageDie(die, deltaSeconds) ? 1 : 0),
       0
     );
-    resolveStageDiceCollisions();
 
-    if (settledCount === diceStage.dice.length) {
-      diceStage.rolling = false;
-      if (diceStage.resolveRoll) {
-        diceStage.resolveRoll();
-        diceStage.resolveRoll = null;
+    if (panel.enableCollisions) {
+      resolveStageDiceCollisions(panel);
+    }
+
+    if (settledCount === panel.dice.length) {
+      panel.rolling = false;
+      if (panel.resolveRoll) {
+        panel.resolveRoll();
+        panel.resolveRoll = null;
       }
-      diceStage.renderer.render(diceStage.scene, diceStage.camera);
-      stopDiceStageFrame();
+      panel.renderer.render(panel.scene, panel.camera);
       return;
     }
   }
 
-  diceStage.renderer.render(diceStage.scene, diceStage.camera);
-  requestDiceStageFrame();
-}
-
-function stepD20Stage(timestamp) {
-  if (!d20Stage.ready) {
-    return;
-  }
-
-  d20Stage.frameId = null;
-
-  if (!d20Stage.lastTs) {
-    d20Stage.lastTs = timestamp;
-  }
-
-  const deltaSeconds = Math.min((timestamp - d20Stage.lastTs) / 1000, 0.032);
-  d20Stage.lastTs = timestamp;
-
-  if (d20Stage.rolling) {
-    const settledCount = d20Stage.dice.reduce(
-      (count, die) => count + (updateStageDie(die, deltaSeconds) ? 1 : 0),
-      0
-    );
-
-    if (settledCount === d20Stage.dice.length) {
-      d20Stage.rolling = false;
-      d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
-      stopD20StageFrame();
-      return;
-    }
-  }
-
-  d20Stage.renderer.render(d20Stage.scene, d20Stage.camera);
-  requestD20StageFrame();
+  panel.renderer.render(panel.scene, panel.camera);
+  requestStageFrame(panel);
 }
 
 function renderDiceStageSummary(result) {
@@ -2055,7 +1947,7 @@ importGroupsInput.addEventListener("change", (event) => {
 });
 
 
-initializeDiceStage();
-initializeD20Stage();
+initializeStagePanel(diceStage);
+initializeStagePanel(d20Stage);
 syncRollModeUi();
 render();
