@@ -1079,16 +1079,28 @@ function normalizeSavedSet(entry) {
 }
 
 function loadGroups() {
-  return groupStorage.loadGroups(window.localStorage, {
-    storageKey: STORAGE_KEYS.groups,
-    defaultsFactory: () => structuredClone(starterGroups),
-    normalizeGroup,
-  });
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEYS.groups);
+    if (!raw) {
+      const defaults = structuredClone(starterGroups);
+      window.localStorage.setItem(STORAGE_KEYS.groups, JSON.stringify(defaults));
+      return defaults;
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      const defaults = structuredClone(starterGroups);
+      window.localStorage.setItem(STORAGE_KEYS.groups, JSON.stringify(defaults));
+      return defaults;
+    }
+    return parsed;
+  } catch {
+    return structuredClone(starterGroups);
+  }
 }
 
 function persistGroups() {
   try {
-    groupStorage.persistGroups(window.localStorage, STORAGE_KEYS.groups, state.groups);
+    window.localStorage.setItem(STORAGE_KEYS.groups, JSON.stringify(state.groups));
   } catch (error) {
     console.warn("Failed to persist groups", error);
   }
