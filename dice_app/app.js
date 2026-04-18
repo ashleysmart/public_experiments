@@ -47,6 +47,7 @@ const STORAGE_KEYS = {
   groups: "dice-forge-groups-v1",
 };
 const ROLL_MODES = ["normal", "crit", "adv", "disadv"];
+const D20_PANEL_MODES = ["adv", "normal", "disadv"];
 const ROLL_MODE_LABELS = {
   normal: "Normal",
   crit: "Crit",
@@ -62,6 +63,8 @@ const state = {
   historyOpen: false,
   rollAnimating: false,
   rollMode: "normal",
+  d20Mode: "normal",
+  d20LastResult: null,
 };
 
 const groupTemplate = document.querySelector("#group-template");
@@ -76,6 +79,12 @@ const clearHistoryButton = document.querySelector("#clear-history-button");
 const exportGroupsButton = document.querySelector("#export-groups-button");
 const importGroupsInput = document.querySelector("#import-groups-input");
 const toggleHistoryButton = document.querySelector("#toggle-history-button");
+const d20Panel = document.querySelector("#d20-panel");
+const d20ModeButtons = Array.from(document.querySelectorAll(".d20-panel__mode"));
+const d20RollButton = document.querySelector("#d20-roll-button");
+const d20PanelStatus = document.querySelector("#d20-panel-status");
+const d20PanelTotal = document.querySelector("#d20-panel-total");
+const d20PanelDetail = document.querySelector("#d20-panel-detail");
 const diceStagePanel = document.querySelector(".dice-stage");
 const diceCanvas = document.querySelector("#dice-canvas");
 const diceStageStatus = document.querySelector("#dice-stage-status");
@@ -1285,6 +1294,23 @@ function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
 }
 
+function rollD20ByMode(mode) {
+  if (mode === "adv" || mode === "disadv") {
+    const pair = [rollDie(20), rollDie(20)];
+    return {
+      mode,
+      pair,
+      value: mode === "adv" ? Math.max(...pair) : Math.min(...pair),
+    };
+  }
+
+  return {
+    mode: "normal",
+    pair: null,
+    value: rollDie(20),
+  };
+}
+
 function parseDiceEquation(equation) {
   const cleaned = equation.replaceAll(/\s+/g, "");
   if (!cleaned) {
@@ -1339,10 +1365,7 @@ function rollGroup(group, rollMode) {
 
     const values =
       sides === 20 && (rollMode === "adv" || rollMode === "disadv")
-        ? Array.from({ length: count }, () => {
-            const pair = [rollDie(20), rollDie(20)];
-            return rollMode === "adv" ? Math.max(...pair) : Math.min(...pair);
-          })
+        ? Array.from({ length: count }, () => rollD20ByMode(rollMode).value)
         : Array.from({ length: count }, () => rollDie(sides));
     const rawTotal = values.reduce((sum, value) => sum + value, 0);
     const total = rawTotal * sign;
@@ -1577,6 +1600,31 @@ function renderHistory() {
   });
 }
 
+function renderD20Panel() {
+  if (!d20Panel || !d20PanelStatus || !d20PanelTotal || !d20PanelDetail) {
+    return;
+  }
+
+  d20ModeButtons.forEach((button) => {
+    const isActive = button.dataset.mode === state.d20Mode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  if (!state.d20LastResult) {
+    d20PanelStatus.textContent = `${ROLL_MODE_LABELS[state.d20Mode]} mode`;
+    d20PanelTotal.textContent = "-";
+    d20PanelDetail.textContent = "Tap to roll";
+    return;
+  }
+
+  d20PanelStatus.textContent = `${ROLL_MODE_LABELS[state.d20Mode]} mode`;
+  d20PanelTotal.textContent = state.d20LastResult.value;
+  d20PanelDetail.textContent = state.d20LastResult.pair
+    ? `${state.d20LastResult.pair[0]} / ${state.d20LastResult.pair[1]}`
+    : "Single die";
+}
+
 function summarizeResult(result) {
   const dice = result.diceEntries
     .map((entry) => `${entry.sign < 0 ? "-" : ""}${entry.count}d${entry.sides} [${entry.values.join(", ")}]`)
@@ -1607,6 +1655,7 @@ function escapeHtml(value) {
 function render() {
   renderGroups();
   renderHistory();
+  renderD20Panel();
   renderDiceStageSummary(state.lastResult);
   document.body.classList.toggle("roll-animating", state.rollAnimating);
 }
@@ -1616,6 +1665,11 @@ function rollSelectedGroups() {
     state.groups.filter((group) => group.selected).map((group) => group.id),
     state.rollMode
   );
+}
+
+function performD20PanelRoll() {
+  state.d20LastResult = rollD20ByMode(state.d20Mode);
+  renderD20Panel();
 }
 
 function exportGroupsAsJson() {
@@ -1706,6 +1760,28 @@ diceStagePanel?.addEventListener("click", (event) => {
     return;
   }
   rollSelectedGroups();
+});
+
+d20ModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const mode = button.dataset.mode;
+    if (!D20_PANEL_MODES.includes(mode)) {
+      return;
+    }
+    state.d20Mode = mode;
+    renderD20Panel();
+  });
+});
+
+d20RollButton?.addEventListener("click", () => {
+  performD20PanelRoll();
+});
+
+d20Panel?.addEventListener("click", (event) => {
+  if (event.target.closest(".d20-panel__mode") || event.target.closest("#d20-roll-button")) {
+    return;
+  }
+  performD20PanelRoll();
 });
 
 clearHistoryButton.addEventListener("click", () => {
