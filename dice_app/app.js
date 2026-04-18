@@ -45,7 +45,6 @@ const starterGroups = [
 
 const STORAGE_KEYS = {
   groups: "dice-forge-groups-v1",
-  savedSets: "dice-forge-saved-sets-v1",
 };
 const ROLL_MODES = ["normal", "crit", "adv", "disadv"];
 const ROLL_MODE_LABELS = {
@@ -59,8 +58,6 @@ const state = {
   groups: loadGroups(),
   history: [],
   lastResult: null,
-  savedSets: loadSavedSets(),
-  drawerOpen: false,
   draggingGroupId: null,
   historyOpen: false,
   rollAnimating: false,
@@ -76,13 +73,6 @@ const addGroupButton = document.querySelector("#add-group-button");
 const rollModeButton = document.querySelector("#roll-mode-button");
 const rollModeLabel = document.querySelector("#roll-mode-label");
 const clearHistoryButton = document.querySelector("#clear-history-button");
-const openSavedSetsButton = document.querySelector("#open-saved-sets-button");
-const closeSavedSetsButton = document.querySelector("#close-saved-sets-button");
-const drawerBackdrop = document.querySelector("#drawer-backdrop");
-const savedSetsDrawer = document.querySelector("#saved-sets-drawer");
-const savedSetNameInput = document.querySelector("#saved-set-name");
-const saveCurrentSetButton = document.querySelector("#save-current-set-button");
-const savedSetsList = document.querySelector("#saved-sets-list");
 const exportGroupsButton = document.querySelector("#export-groups-button");
 const importGroupsInput = document.querySelector("#import-groups-input");
 const toggleHistoryButton = document.querySelector("#toggle-history-button");
@@ -1035,47 +1025,11 @@ function renderDiceStageSummary(result) {
     .join("");
 }
 
-function loadSavedSets() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEYS.savedSets);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed
-      .map((entry) => normalizeSavedSet(entry))
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function persistSavedSets() {
-  window.localStorage.setItem(STORAGE_KEYS.savedSets, JSON.stringify(state.savedSets));
-}
-
 function normalizeGroup(group, fallbackIndex = 0) {
   return groupStorage.normalizeGroup(group, fallbackIndex, {
     palette: STAGE_GROUP_PALETTE,
     createId: () => crypto.randomUUID(),
   });
-}
-
-function normalizeSavedSet(entry) {
-  if (!entry || typeof entry !== "object") {
-    return null;
-  }
-
-  const groups = Array.isArray(entry.groups) ? entry.groups.map(normalizeGroup).filter(Boolean) : [];
-  return {
-    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
-    name:
-      typeof entry.name === "string" && entry.name.trim()
-        ? entry.name.trim().slice(0, 40)
-        : `Set ${groups.length || 1}`,
-    groups,
-  };
 }
 
 function loadGroups() {
@@ -1325,53 +1279,6 @@ function reorderGroups(sourceId, targetId, placeAfter) {
   persistGroups();
   clearDragTargets();
   render();
-}
-
-function renderSavedSets() {
-  if (state.savedSets.length === 0) {
-    savedSetsList.className = "saved-sets-list empty-state";
-    savedSetsList.textContent = "No saved sets.";
-    return;
-  }
-
-  savedSetsList.className = "saved-sets-list";
-  savedSetsList.innerHTML = state.savedSets
-    .map(
-      (set) => `
-        <article class="saved-set">
-          <div>
-            <h3>${escapeHtml(set.name)}</h3>
-            <p class="history-entry__meta">${set.groups.length} groups</p>
-          </div>
-          <div class="saved-set__actions">
-            <button class="button button--small" data-action="load-set" data-set-id="${set.id}" type="button">Load</button>
-            <button class="button button--small button--ghost" data-action="delete-set" data-set-id="${set.id}" type="button">Delete</button>
-          </div>
-        </article>
-      `
-    )
-    .join("");
-
-  savedSetsList.querySelectorAll("[data-action='load-set']").forEach((button) => {
-    button.addEventListener("click", () => {
-      const set = state.savedSets.find((entry) => entry.id === button.dataset.setId);
-      if (!set) {
-        return;
-      }
-      state.groups = set.groups.map((group, index) => ({ ...normalizeGroup(group, index), collapsed: true }));
-      persistGroups();
-      closeDrawer();
-      render();
-    });
-  });
-
-  savedSetsList.querySelectorAll("[data-action='delete-set']").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.savedSets = state.savedSets.filter((entry) => entry.id !== button.dataset.setId);
-      persistSavedSets();
-      renderSavedSets();
-    });
-  });
 }
 
 function rollDie(sides) {
@@ -1700,23 +1607,8 @@ function escapeHtml(value) {
 function render() {
   renderGroups();
   renderHistory();
-  renderSavedSets();
   renderDiceStageSummary(state.lastResult);
-  savedSetsDrawer.classList.toggle("drawer--open", state.drawerOpen);
-  drawerBackdrop.classList.toggle("drawer-backdrop--open", state.drawerOpen);
-  savedSetsDrawer.setAttribute("aria-hidden", String(!state.drawerOpen));
-  document.body.classList.toggle("drawer-open", state.drawerOpen);
   document.body.classList.toggle("roll-animating", state.rollAnimating);
-}
-
-function openDrawer() {
-  state.drawerOpen = true;
-  render();
-}
-
-function closeDrawer() {
-  state.drawerOpen = false;
-  render();
 }
 
 function rollSelectedGroups() {
@@ -1753,7 +1645,6 @@ function importGroupsFromJson(file) {
       }
       state.groups = normalized;
       persistGroups();
-      closeDrawer();
       render();
     } catch {
       window.alert("Failed to read file: invalid JSON.");
@@ -1823,22 +1714,6 @@ clearHistoryButton.addEventListener("click", () => {
   render();
 });
 
-openSavedSetsButton.addEventListener("click", openDrawer);
-closeSavedSetsButton.addEventListener("click", closeDrawer);
-drawerBackdrop.addEventListener("click", closeDrawer);
-
-saveCurrentSetButton.addEventListener("click", () => {
-  const name = savedSetNameInput.value.trim() || `Set ${state.savedSets.length + 1}`;
-  state.savedSets.unshift({
-    id: crypto.randomUUID(),
-    name,
-    groups: state.groups.map((group, index) => normalizeGroup(group, index)),
-  });
-  savedSetNameInput.value = "";
-  persistSavedSets();
-  renderSavedSets();
-});
-
 toggleHistoryButton.addEventListener("click", () => {
   if (state.history.length === 0) {
     return;
@@ -1884,11 +1759,6 @@ importGroupsInput.addEventListener("change", (event) => {
   event.target.value = "";
 });
 
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.drawerOpen) {
-    closeDrawer();
-  }
-});
 
 initializeDiceStage();
 syncRollModeUi();

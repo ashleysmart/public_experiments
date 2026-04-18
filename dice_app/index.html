@@ -7,10 +7,6 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <button id="open-saved-sets-button" class="drawer-handle" type="button" aria-label="Open saved sets">
-      Sets
-    </button>
-    <button id="drawer-backdrop" class="drawer-backdrop" type="button" aria-label="Close saved sets"></button>
     <div class="dice-overlay" aria-live="polite">
       <section class="dice-stage" aria-label="Animated dice tray">
         <canvas id="dice-canvas" class="dice-stage__canvas" width="640" height="360"></canvas>
@@ -38,6 +34,11 @@
           <span class="add-group-handle__label" aria-hidden="true">New</span>
           <span class="add-group-handle__plus" aria-hidden="true">+</span>
         </button>
+      </div>
+      <div class="json-actions">
+        <button id="export-groups-button" class="button button--ghost button--small" type="button">Export JSON</button>
+        <label class="button button--ghost button--small" for="import-groups-input">Import JSON</label>
+        <input id="import-groups-input" type="file" accept=".json,application/json" style="display:none" />
       </div>
     </div>
 
@@ -155,37 +156,6 @@
       </article>
     </template>
 
-    <aside id="saved-sets-drawer" class="drawer" aria-hidden="true">
-      <div class="drawer__header">
-        <div>
-          <h2>Saved Sets</h2>
-          <p class="drawer__meta">Store and reload group layouts on this device.</p>
-        </div>
-        <button id="close-saved-sets-button" class="icon-button" type="button" aria-label="Close saved sets">
-          ×
-        </button>
-      </div>
-
-      <div class="drawer__save">
-        <label class="field">
-          <span>Set Name</span>
-          <input id="saved-set-name" type="text" maxlength="40" placeholder="Boss opener" />
-        </label>
-        <button id="save-current-set-button" class="button button--primary" type="button">
-          Save Current Set
-        </button>
-      </div>
-
-      <div id="saved-sets-list" class="saved-sets-list empty-state">
-        No saved sets.
-      </div>
-
-      <div class="drawer__json-actions">
-        <button id="export-groups-button" class="button button--ghost button--small" type="button">Export JSON</button>
-        <label class="button button--ghost button--small" for="import-groups-input">Import JSON</label>
-        <input id="import-groups-input" type="file" accept=".json,application/json" style="display:none" />
-      </div>
-    </aside>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="./group_storage.js"></script>
