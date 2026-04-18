@@ -59,6 +59,10 @@
       }
 
       const normalized = parsed.map((group, index) => normalize(group, index));
+      const normalizedJson = JSON.stringify(normalized);
+      if (normalizedJson !== raw) {
+        persistGroups(storage, storageKey, normalized);
+      }
       return normalized;
     } catch {
       const defaults = defaultsFactory();
