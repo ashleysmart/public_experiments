@@ -13,11 +13,6 @@
           <p class="d20-panel__eyebrow">D20 Check</p>
           <p id="d20-panel-status" class="d20-panel__status">Ready</p>
         </div>
-        <div class="d20-panel__modes" role="group" aria-label="D20 roll mode">
-          <button id="d20-mode-adv" class="d20-panel__mode" data-mode="adv" type="button">Adv</button>
-          <button id="d20-mode-normal" class="d20-panel__mode" data-mode="normal" type="button">Normal</button>
-          <button id="d20-mode-disadv" class="d20-panel__mode" data-mode="disadv" type="button">Disadv</button>
-        </div>
         <div id="d20-roll-button" class="d20-panel__roll" role="button" tabindex="0" aria-label="Roll d20">
           <canvas id="d20-canvas" class="d20-panel__canvas" width="320" height="360"></canvas>
           <div class="d20-panel__hud">
@@ -25,6 +20,11 @@
             <strong id="d20-panel-total" class="d20-panel__total">-</strong>
             <span id="d20-panel-detail" class="d20-panel__detail">Tap to roll</span>
           </div>
+        </div>
+        <div class="d20-panel__modes" role="group" aria-label="D20 roll mode">
+          <button id="d20-mode-adv" class="d20-panel__mode" data-mode="adv" type="button">Adv</button>
+          <button id="d20-mode-normal" class="d20-panel__mode" data-mode="normal" type="button">Normal</button>
+          <button id="d20-mode-disadv" class="d20-panel__mode" data-mode="disadv" type="button">Disadv</button>
         </div>
       </section>
       <section class="dice-stage" aria-label="Animated dice tray">
