@@ -193,7 +193,7 @@ const d20Stage = createStagePanel({
   fillIntensity: 0,
   showGrid: false,
   showBoundary: false,
-  enableCollisions: false,
+  enableCollisions: true,
   canvasMinWidth: 220,
   canvasMinHeight: 180,
 });
@@ -851,68 +851,89 @@ function startStageRoll(result) {
   return rollPromise;
 }
 
-function startD20StageRoll(value) {
+function startD20StageRoll(d20Result) {
   if (!d20Stage.ready) {
     return;
   }
 
   clearPanelDice(d20Stage);
-  const die = createDieEntity(20, value, {
-    face: "#9ea4ae",
-    edge: "#535962",
-  });
-  d20Stage.scene.add(die.mesh);
-  d20Stage.dice = [die];
   d20Stage.rolling = true;
   d20Stage.lastTs = 0;
 
-  const wall = Math.floor(Math.random() * 4);
-  let startX;
-  let startZ;
-  let startVX;
-  let startVZ;
-  const spread = (Math.random() - 0.5) * (wall < 2 ? d20Stage.boundZ * 1.2 : d20Stage.boundX * 1.2);
-  const throwSpeed = 30 + Math.random() * 10;
-  const sideAngle = (Math.random() - 0.5) * 0.45;
+  const winColor = { face: "#9ea4ae", edge: "#535962" };
+  const loseColor = { face: "#5c6069", edge: "#2e3138" };
 
-  if (wall === 0) {
-    startX = -(d20Stage.boundX + STAGE_RADIUS);
-    startZ = spread;
-    startVX = throwSpeed;
-    startVZ = sideAngle * throwSpeed;
-  } else if (wall === 1) {
-    startX = d20Stage.boundX + STAGE_RADIUS;
-    startZ = spread;
-    startVX = -throwSpeed;
-    startVZ = sideAngle * throwSpeed;
-  } else if (wall === 2) {
-    startX = spread;
-    startZ = -(d20Stage.boundZ + STAGE_RADIUS);
-    startVZ = throwSpeed;
-    startVX = sideAngle * throwSpeed;
+  // Build one entry per die to throw. For adv/disadv, throw both dice and
+  // mark the selected (winning) die with the bright color.
+  let diceSpec;
+  if (d20Result.pair) {
+    const [v0, v1] = d20Result.pair;
+    const v0wins = d20Result.mode === "adv" ? v0 >= v1 : v0 <= v1;
+    diceSpec = [
+      { value: v0, colors: v0wins ? winColor : loseColor },
+      { value: v1, colors: v0wins ? loseColor : winColor },
+    ];
   } else {
-    startX = spread;
-    startZ = d20Stage.boundZ + STAGE_RADIUS;
-    startVZ = -throwSpeed;
-    startVX = sideAngle * throwSpeed;
+    diceSpec = [{ value: d20Result.value, colors: winColor }];
   }
 
-  die.settled = false;
-  die.stillFrames = 0;
-  die.snapping = false;
-  die.snapQ = null;
-  die.age = 0;
-  die.mesh.position.set(startX, STAGE_FLOOR + STAGE_RADIUS + 1.8 + Math.random() * 1.2, startZ);
-  die.mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
-  const spin = 26 + Math.random() * 14;
-  const angle = Math.random() * Math.PI * 2;
-  die.vX = startVX + (Math.random() - 0.5) * 4;
-  die.vZ = startVZ + (Math.random() - 0.5) * 4;
-  die.vy = -4 - Math.random() * 3;
-  die.vRx = Math.cos(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
-  die.vRy = (Math.random() - 0.5) * spin * 2.1;
-  die.vRz = Math.sin(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
-  die.delay = 0;
+  const wall = Math.floor(Math.random() * 4);
+
+  diceSpec.forEach((spec, index) => {
+    const die = createDieEntity(20, spec.value, spec.colors);
+    d20Stage.scene.add(die.mesh);
+    d20Stage.dice.push(die);
+
+    // Stagger the two dice laterally so they enter side-by-side.
+    const lateral = diceSpec.length > 1 ? (index === 0 ? -0.9 : 0.9) : 0;
+    const spread = (Math.random() - 0.5) * (wall < 2 ? d20Stage.boundZ * 1.0 : d20Stage.boundX * 1.0);
+    const throwSpeed = 28 + Math.random() * 10;
+    const sideAngle = (Math.random() - 0.5) * 0.38;
+
+    let startX;
+    let startZ;
+    let startVX;
+    let startVZ;
+
+    if (wall === 0) {
+      startX = -(d20Stage.boundX + STAGE_RADIUS);
+      startZ = spread + lateral;
+      startVX = throwSpeed;
+      startVZ = sideAngle * throwSpeed;
+    } else if (wall === 1) {
+      startX = d20Stage.boundX + STAGE_RADIUS;
+      startZ = spread + lateral;
+      startVX = -throwSpeed;
+      startVZ = sideAngle * throwSpeed;
+    } else if (wall === 2) {
+      startX = spread + lateral;
+      startZ = -(d20Stage.boundZ + STAGE_RADIUS);
+      startVZ = throwSpeed;
+      startVX = sideAngle * throwSpeed;
+    } else {
+      startX = spread + lateral;
+      startZ = d20Stage.boundZ + STAGE_RADIUS;
+      startVZ = -throwSpeed;
+      startVX = sideAngle * throwSpeed;
+    }
+
+    die.settled = false;
+    die.stillFrames = 0;
+    die.snapping = false;
+    die.snapQ = null;
+    die.age = 0;
+    die.delay = index * 0.06;
+    die.mesh.position.set(startX, STAGE_FLOOR + STAGE_RADIUS + 1.8 + Math.random() * 1.2, startZ);
+    die.mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+    const spin = 26 + Math.random() * 14;
+    const angle = Math.random() * Math.PI * 2;
+    die.vX = startVX + (Math.random() - 0.5) * 4;
+    die.vZ = startVZ + (Math.random() - 0.5) * 4;
+    die.vy = -4 - Math.random() * 3;
+    die.vRx = Math.cos(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
+    die.vRy = (Math.random() - 0.5) * spin * 2.1;
+    die.vRz = Math.sin(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
+  });
 
   requestStageFrame(d20Stage);
 }
@@ -1788,7 +1809,7 @@ function rollSelectedGroups() {
 function performD20PanelRoll() {
   state.d20LastResult = rollD20ByMode(state.d20Mode);
   renderD20Panel();
-  startD20StageRoll(state.d20LastResult.value);
+  startD20StageRoll(state.d20LastResult);
 }
 
 function exportGroupsAsJson() {
