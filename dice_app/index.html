@@ -16,9 +16,8 @@
         <div id="d20-roll-button" class="d20-panel__roll" role="button" tabindex="0" aria-label="Roll d20">
           <canvas id="d20-canvas" class="d20-panel__canvas" width="320" height="360"></canvas>
           <div class="d20-panel__hud">
-            <span class="d20-panel__roll-label">Roll d20</span>
             <strong id="d20-panel-total" class="d20-panel__total">-</strong>
-            <span id="d20-panel-detail" class="d20-panel__detail">Tap to roll</span>
+            <span id="d20-panel-detail" class="d20-panel__detail">Ready</span>
           </div>
         </div>
         <div class="d20-panel__modes" role="group" aria-label="D20 roll mode">
@@ -31,7 +30,7 @@
         <canvas id="dice-canvas" class="dice-stage__canvas" width="640" height="360"></canvas>
         <div class="dice-stage__hud">
           <div class="dice-stage__hud-top">
-            <p id="dice-stage-status" class="dice-stage__status">Select groups and roll.</p>
+            <button id="dice-stage-mode-toggle" class="dice-stage__mode-toggle" type="button">Normal Roll</button>
             <div id="dice-stage-total" class="dice-stage__total">-</div>
           </div>
           <div class="dice-stage__hud-sides">

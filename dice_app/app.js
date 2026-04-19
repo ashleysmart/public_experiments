@@ -88,7 +88,7 @@ const d20PanelTotal = document.querySelector("#d20-panel-total");
 const d20PanelDetail = document.querySelector("#d20-panel-detail");
 const diceStagePanel = document.querySelector(".dice-stage");
 const diceCanvas = document.querySelector("#dice-canvas");
-const diceStageStatus = document.querySelector("#dice-stage-status");
+const diceStageModeToggle = document.querySelector("#dice-stage-mode-toggle");
 const diceStageTotal = document.querySelector("#dice-stage-total");
 const diceStageDetail = document.querySelector("#dice-stage-detail");
 const diceStageBreakdown = document.querySelector("#dice-stage-breakdown");
@@ -860,8 +860,8 @@ function startD20StageRoll(d20Result) {
   d20Stage.rolling = true;
   d20Stage.lastTs = 0;
 
-  const winColor = { face: "#9ea4ae", edge: "#535962" };
-  const loseColor = { face: "#5c6069", edge: "#2e3138" };
+  const winColor = { face: "#4a84d9", edge: "#173f7a" };
+  const loseColor = { face: "#d95f43", edge: "#7f2618" };
 
   // Build one entry per die to throw. For adv/disadv, throw both dice and
   // mark the selected (winning) die with the bright color.
@@ -877,18 +877,23 @@ function startD20StageRoll(d20Result) {
     diceSpec = [{ value: d20Result.value, colors: winColor }];
   }
 
-  const wall = Math.floor(Math.random() * 4);
-
   diceSpec.forEach((spec, index) => {
     const die = createDieEntity(20, spec.value, spec.colors);
     d20Stage.scene.add(die.mesh);
     d20Stage.dice.push(die);
 
-    // Stagger the two dice laterally so they enter side-by-side.
-    const lateral = diceSpec.length > 1 ? (index === 0 ? -0.9 : 0.9) : 0;
-    const spread = (Math.random() - 0.5) * (wall < 2 ? d20Stage.boundZ * 1.0 : d20Stage.boundX * 1.0);
-    const throwSpeed = 28 + Math.random() * 10;
-    const sideAngle = (Math.random() - 0.5) * 0.38;
+    // When rolling two dice, throw them from opposite walls so they
+    // visibly collide in the middle. Single die uses a random wall.
+    let wall;
+    if (diceSpec.length > 1) {
+      wall = index === 0 ? 0 : 1; // left vs right
+    } else {
+      wall = Math.floor(Math.random() * 4);
+    }
+
+    const spread = (Math.random() - 0.5) * d20Stage.boundZ * 0.8;
+    const throwSpeed = 28 + Math.random() * 8;
+    const sideAngle = (Math.random() - 0.5) * 0.3;
 
     let startX;
     let startZ;
@@ -897,21 +902,21 @@ function startD20StageRoll(d20Result) {
 
     if (wall === 0) {
       startX = -(d20Stage.boundX + STAGE_RADIUS);
-      startZ = spread + lateral;
+      startZ = spread;
       startVX = throwSpeed;
       startVZ = sideAngle * throwSpeed;
     } else if (wall === 1) {
       startX = d20Stage.boundX + STAGE_RADIUS;
-      startZ = spread + lateral;
+      startZ = spread;
       startVX = -throwSpeed;
       startVZ = sideAngle * throwSpeed;
     } else if (wall === 2) {
-      startX = spread + lateral;
+      startX = spread;
       startZ = -(d20Stage.boundZ + STAGE_RADIUS);
       startVZ = throwSpeed;
       startVX = sideAngle * throwSpeed;
     } else {
-      startX = spread + lateral;
+      startX = spread;
       startZ = d20Stage.boundZ + STAGE_RADIUS;
       startVZ = -throwSpeed;
       startVX = sideAngle * throwSpeed;
@@ -922,13 +927,13 @@ function startD20StageRoll(d20Result) {
     die.snapping = false;
     die.snapQ = null;
     die.age = 0;
-    die.delay = index * 0.06;
+    die.delay = index * 0.05;
     die.mesh.position.set(startX, STAGE_FLOOR + STAGE_RADIUS + 1.8 + Math.random() * 1.2, startZ);
     die.mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
     const spin = 26 + Math.random() * 14;
     const angle = Math.random() * Math.PI * 2;
-    die.vX = startVX + (Math.random() - 0.5) * 4;
-    die.vZ = startVZ + (Math.random() - 0.5) * 4;
+    die.vX = startVX + (Math.random() - 0.5) * 3;
+    die.vZ = startVZ + (Math.random() - 0.5) * 3;
     die.vy = -4 - Math.random() * 3;
     die.vRx = Math.cos(angle) * spin * (Math.random() > 0.5 ? 1 : -1);
     die.vRy = (Math.random() - 0.5) * spin * 2.1;
@@ -1149,15 +1154,17 @@ function stepStagePanel(panel, timestamp) {
 }
 
 function renderDiceStageSummary(result) {
+  if (diceStageModeToggle) {
+    diceStageModeToggle.textContent = state.rollMode === "crit" ? "Crit Roll" : "Normal Roll";
+  }
+
   if (!result) {
-    diceStageStatus.textContent = "Select groups and roll.";
     diceStageTotal.textContent = "-";
     diceStageDetail.innerHTML = '<span class="dice-stage__chip">No roll yet.</span>';
     diceStageBreakdown.innerHTML = "";
     return;
   }
 
-  diceStageStatus.textContent = `${ROLL_MODE_LABELS[result.rollMode] || "Normal"} roll`;
   diceStageTotal.textContent = result.total;
   diceStageDetail.innerHTML = result.groupResults
     .map(
@@ -1218,6 +1225,12 @@ function cycleRollMode(direction) {
   const nextIndex = (currentIndex + direction + ROLL_MODES.length) % ROLL_MODES.length;
   state.rollMode = ROLL_MODES[nextIndex];
   syncRollModeUi();
+}
+
+function toggleDamageRollMode() {
+  state.rollMode = state.rollMode === "crit" ? "normal" : "crit";
+  syncRollModeUi();
+  renderDiceStageSummary(state.lastResult);
 }
 
 function createEmptyGroup() {
@@ -1753,7 +1766,7 @@ function renderD20Panel() {
   if (!state.d20LastResult) {
     d20PanelStatus.textContent = `${ROLL_MODE_LABELS[state.d20Mode]} mode`;
     d20PanelTotal.textContent = "-";
-    d20PanelDetail.textContent = "Tap to roll";
+    d20PanelDetail.textContent = "Ready";
     return;
   }
 
@@ -1899,7 +1912,15 @@ diceStagePanel?.addEventListener("click", (event) => {
   if (event.target.closest("#roll-mode-button")) {
     return;
   }
+  if (event.target.closest("#dice-stage-mode-toggle")) {
+    return;
+  }
   rollSelectedGroups();
+});
+
+diceStageModeToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleDamageRollMode();
 });
 
 d20ModeButtons.forEach((button) => {

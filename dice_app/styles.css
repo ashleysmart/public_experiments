@@ -286,13 +286,6 @@ h2 {
   pointer-events: none;
 }
 
-.d20-panel__roll-label {
-  font-size: 0.74rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(240, 243, 250, 0.74);
-}
-
 .d20-panel__total {
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2.5rem, 5vw, 4rem);
@@ -358,16 +351,25 @@ h2 {
   pointer-events: none;
 }
 
-.dice-stage__status,
 .dice-stage__detail {
   color: rgba(32, 24, 16, 0.82);
   text-shadow: none;
 }
 
-.dice-stage__status {
-  font-size: 0.74rem;
-  letter-spacing: 0.16em;
+.dice-stage__mode-toggle {
+  appearance: none;
+  justify-self: start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(76, 59, 39, 0.18);
+  background: rgba(241, 223, 196, 0.7);
+  color: rgba(24, 18, 12, 0.92);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  cursor: pointer;
 }
 
 .dice-stage__hud-top {
@@ -446,6 +448,8 @@ h2 {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   width: fit-content;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .dice-stage__chip strong {
@@ -1402,16 +1406,24 @@ input[type="color"]::-moz-color-swatch {
   }
 
   .dice-stage__hud-sides {
-    gap: 12px;
-  }
-
-  .dice-stage__side {
-    max-width: 160px;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .dice-overlay {
     top: 10px;
     width: min(100vw - 16px, 980px);
+  }
+
+  .dice-stage__side,
+  .dice-stage__side--right {
+    max-width: none;
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  .dice-stage__breakdown {
+    align-items: flex-start;
   }
 
   .page-shell {
@@ -1582,22 +1594,6 @@ input[type="color"]::-moz-color-swatch {
 
   .dice-stage__total {
     font-size: 2rem;
-  }
-
-  .dice-stage__hud-sides {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .dice-stage__side,
-  .dice-stage__side--right {
-    max-width: none;
-    justify-self: stretch;
-    text-align: left;
-  }
-
-  .dice-stage__breakdown {
-    align-items: flex-start;
   }
 
   .page-shell {
