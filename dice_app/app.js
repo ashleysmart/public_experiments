@@ -34,6 +34,9 @@ const totalsEl = document.querySelector("#dice-totals");
 const diceRowEl = document.querySelector("#dice-row");
 const bonusRowEl = document.querySelector("#bonus-row");
 const groupRowEl = document.querySelector("#group-row");
+const sortButton = document.querySelector("#sort-button");
+const duplicateButton = document.querySelector("#duplicate-button");
+const halveButton = document.querySelector("#halve-button");
 const rerollButton = document.querySelector("#reroll-button");
 const clearButton = document.querySelector("#clear-button");
 const popoverEl = document.querySelector("#editor-popover");
@@ -454,6 +457,87 @@ function clearPile() {
   syncPile();
 }
 
+// Combined ordering used by the sort button: within a group, tokens rank by
+// value and dice rank by side count, with every token ranking below every die
+// — e.g. +1 < +10 < d4 < d6. The sort clusters entries by group first (group A
+// before group B), then arranges each group's entries largest to smallest.
+function entryRank(entry) {
+  return entry.kind === "token" ? [0, entry.value] : [1, entry.sides];
+}
+
+function groupOrderIndex(groupId) {
+  const index = state.groups.findIndex((group) => group.id === groupId);
+  return index === -1 ? state.groups.length : index;
+}
+
+function sortPile() {
+  if (state.entries.length < 2) {
+    return;
+  }
+
+  state.entries.sort((a, b) => {
+    const groupDiff = groupOrderIndex(a.groupId) - groupOrderIndex(b.groupId);
+    if (groupDiff !== 0) {
+      return groupDiff;
+    }
+    const [kindA, sizeA] = entryRank(a);
+    const [kindB, sizeB] = entryRank(b);
+    if (kindA !== kindB) {
+      return kindB - kindA;
+    }
+    return sizeB - sizeA;
+  });
+
+  saveState();
+  syncPile();
+}
+
+function duplicateDicePile() {
+  if (!state.entries.some((entry) => entry.kind === "die")) {
+    return;
+  }
+
+  const expanded = [];
+  state.entries.forEach((entry) => {
+    expanded.push(entry);
+    if (entry.kind === "die") {
+      expanded.push({
+        id: createId(),
+        kind: "die",
+        sides: entry.sides,
+        value: rollDie(entry.sides),
+        groupId: entry.groupId,
+      });
+    }
+  });
+
+  state.entries = expanded;
+  saveState();
+  syncPile();
+}
+
+// Reverses duplicateDicePile: walks the dice in pile order and drops every
+// second one, leaving tokens (and any unpaired die) untouched.
+function halveDicePile() {
+  let dieIndex = 0;
+  const halved = state.entries.filter((entry) => {
+    if (entry.kind !== "die") {
+      return true;
+    }
+    const keep = dieIndex % 2 === 0;
+    dieIndex += 1;
+    return keep;
+  });
+
+  if (halved.length === state.entries.length) {
+    return;
+  }
+
+  state.entries = halved;
+  saveState();
+  syncPile();
+}
+
 // (Re)starts the spin animation on a die tile, then settles it to an outline + number.
 // Restarting requires clearing both state classes and forcing a reflow so the
 // CSS animation (keyed off .dice-tile--rolling) replays from its first frame.
@@ -553,8 +637,17 @@ function syncPile() {
     const group = findGroup(entry.groupId);
     const tile = entry.kind === "die" ? buildDieTile(entry, group) : buildTokenTile(entry, group);
     tile.addEventListener("click", () => removeEntry(entry.id));
-    dicePileEl.appendChild(tile);
     pileTiles.set(entry.id, tile);
+  });
+
+  // Re-append every tile (existing + new) in entry order. Moving an existing
+  // node doesn't restart its animation, so sorting/duplicating/halving can
+  // freely reorder state.entries and rely on this pass to match the DOM to it.
+  state.entries.forEach((entry) => {
+    const tile = pileTiles.get(entry.id);
+    if (tile) {
+      dicePileEl.appendChild(tile);
+    }
   });
 
   if (state.entries.length === 0) {
@@ -688,6 +781,9 @@ function renderGroupRow() {
   groupRowEl.appendChild(buildAddButton("group-button group-button--add", "Add group", addGroup));
 }
 
+sortButton.addEventListener("click", sortPile);
+duplicateButton.addEventListener("click", duplicateDicePile);
+halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 
