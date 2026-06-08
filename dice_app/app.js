@@ -34,6 +34,7 @@ const totalsEl = document.querySelector("#dice-totals");
 const diceRowEl = document.querySelector("#dice-row");
 const bonusRowEl = document.querySelector("#bonus-row");
 const groupRowEl = document.querySelector("#group-row");
+const rerollButton = document.querySelector("#reroll-button");
 const clearButton = document.querySelector("#clear-button");
 const popoverEl = document.querySelector("#editor-popover");
 
@@ -453,10 +454,25 @@ function clearPile() {
   syncPile();
 }
 
+// (Re)starts the spin animation on a die tile, then settles it to an outline + number.
+// Restarting requires clearing both state classes and forcing a reflow so the
+// CSS animation (keyed off .dice-tile--rolling) replays from its first frame.
+function spinDieTile(tile) {
+  const shape = tile.querySelector(".dice-tile__shape");
+  tile.classList.remove("dice-tile--rolling", "dice-tile--settled");
+  void shape.getBoundingClientRect();
+  tile.classList.add("dice-tile--rolling");
+
+  window.setTimeout(() => {
+    tile.classList.remove("dice-tile--rolling");
+    tile.classList.add("dice-tile--settled");
+  }, DIE_SPIN_MS);
+}
+
 function buildDieTile(entry, group) {
   const tile = document.createElement("button");
   tile.type = "button";
-  tile.className = "dice-tile dice-tile--die dice-tile--rolling";
+  tile.className = "dice-tile dice-tile--die";
   tile.style.setProperty("--tile-color", group.color);
   tile.setAttribute("aria-label", `${group.label} d${entry.sides}: ${entry.value}. Tap to remove.`);
 
@@ -478,13 +494,31 @@ function buildDieTile(entry, group) {
   type.textContent = `d${entry.sides}`;
 
   tile.append(shape, value, type);
-
-  window.setTimeout(() => {
-    tile.classList.remove("dice-tile--rolling");
-    tile.classList.add("dice-tile--settled");
-  }, DIE_SPIN_MS);
+  spinDieTile(tile);
 
   return tile;
+}
+
+function rerollPile() {
+  const dieEntries = state.entries.filter((entry) => entry.kind === "die");
+  if (dieEntries.length === 0) {
+    return;
+  }
+
+  dieEntries.forEach((entry) => {
+    entry.value = rollDie(entry.sides);
+    const tile = pileTiles.get(entry.id);
+    if (!tile) {
+      return;
+    }
+    const group = findGroup(entry.groupId);
+    tile.setAttribute("aria-label", `${group.label} d${entry.sides}: ${entry.value}. Tap to remove.`);
+    tile.querySelector(".dice-tile__value").textContent = String(entry.value);
+    spinDieTile(tile);
+  });
+
+  saveState();
+  renderTotals();
 }
 
 function buildTokenTile(entry, group) {
@@ -654,6 +688,7 @@ function renderGroupRow() {
   groupRowEl.appendChild(buildAddButton("group-button group-button--add", "Add group", addGroup));
 }
 
+rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 
 renderDiceRow();
