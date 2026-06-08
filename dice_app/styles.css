@@ -59,11 +59,15 @@ body {
 
 .dice-panel__header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 14px 0;
 }
 
+.sort-button,
+.duplicate-button,
+.halve-button,
 .reroll-button,
 .clear-button {
   border: 1px solid var(--line-strong);
@@ -77,6 +81,9 @@ body {
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
+.sort-button:hover,
+.duplicate-button:hover,
+.halve-button:hover,
 .reroll-button:hover,
 .clear-button:hover {
   color: var(--text);
