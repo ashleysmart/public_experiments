@@ -20,6 +20,15 @@ const GROUP_PALETTE = [
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// crypto.randomUUID is only defined in secure contexts (HTTPS or localhost);
+// fall back to a manual id so the app also works over plain HTTP on other hosts.
+function createId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const dicePileEl = document.querySelector("#dice-pile");
 const totalsEl = document.querySelector("#dice-totals");
 const diceRowEl = document.querySelector("#dice-row");
@@ -30,7 +39,7 @@ const popoverEl = document.querySelector("#editor-popover");
 
 function createDefaultGroups() {
   return ["A", "B", "C", "D", "E"].map((label, index) => ({
-    id: crypto.randomUUID(),
+    id: createId(),
     label,
     color: GROUP_PALETTE[index % GROUP_PALETTE.length],
   }));
@@ -38,8 +47,8 @@ function createDefaultGroups() {
 
 function createDefaultBonusTokens() {
   return [
-    { id: crypto.randomUUID(), value: 1 },
-    { id: crypto.randomUUID(), value: 2 },
+    { id: createId(), value: 1 },
+    { id: createId(), value: 2 },
   ];
 }
 
@@ -66,7 +75,7 @@ function loadState() {
     }
 
     const groups = parsed.groups.map((group, index) => ({
-      id: typeof group?.id === "string" && group.id ? group.id : crypto.randomUUID(),
+      id: typeof group?.id === "string" && group.id ? group.id : createId(),
       label:
         typeof group?.label === "string" && group.label.trim()
           ? group.label.trim().slice(0, 4)
@@ -81,7 +90,7 @@ function loadState() {
     const bonusTokens =
       Array.isArray(parsed.bonusTokens) && parsed.bonusTokens.length > 0
         ? parsed.bonusTokens.map((token) => ({
-            id: typeof token?.id === "string" && token.id ? token.id : crypto.randomUUID(),
+            id: typeof token?.id === "string" && token.id ? token.id : createId(),
             value: Number.isFinite(token?.value) ? Math.trunc(token.value) : 1,
           }))
         : createDefaultBonusTokens();
@@ -93,7 +102,7 @@ function loadState() {
               entry && (entry.kind === "die" || entry.kind === "token") && Number.isFinite(entry.value)
           )
           .map((entry) => ({
-            id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+            id: typeof entry.id === "string" && entry.id ? entry.id : createId(),
             kind: entry.kind,
             sides: entry.kind === "die" ? Number(entry.sides) : undefined,
             value: Math.trunc(entry.value),
@@ -353,7 +362,7 @@ function setActiveGroup(groupId) {
 
 function addGroup() {
   const group = {
-    id: crypto.randomUUID(),
+    id: createId(),
     label: nextGroupLabel(),
     color: GROUP_PALETTE[state.groups.length % GROUP_PALETTE.length],
   };
@@ -378,7 +387,7 @@ function updateGroup(groupId, changes) {
 
 function addBonusToken() {
   const last = state.bonusTokens[state.bonusTokens.length - 1];
-  state.bonusTokens.push({ id: crypto.randomUUID(), value: last ? last.value + 1 : 1 });
+  state.bonusTokens.push({ id: createId(), value: last ? last.value + 1 : 1 });
   saveState();
   renderBonusRow();
 }
@@ -404,7 +413,7 @@ function removeBonusToken(tokenId) {
 
 function rollDieIntoPile(sides) {
   state.entries.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     kind: "die",
     sides,
     value: rollDie(sides),
@@ -416,7 +425,7 @@ function rollDieIntoPile(sides) {
 
 function addTokenToPile(token) {
   state.entries.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     kind: "token",
     value: token.value,
     groupId: state.activeGroupId,
