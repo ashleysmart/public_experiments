@@ -1,5 +1,6 @@
 const DICE_ROW_SIDES = [20, 12, 10, 8, 6, 4];
 const STORAGE_KEY = "dice-forge-tray-v1";
+const COLLAPSED_KEY = "dice-forge-collapsed-v1";
 const LONG_PRESS_MS = 480;
 const PRESS_MOVE_TOLERANCE = 8;
 
@@ -787,7 +788,48 @@ halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 
+function loadCollapsedPanels() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY));
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function setupPanelToggles() {
+  const collapsed = loadCollapsedPanels();
+
+  document.querySelectorAll("[data-panel-toggle]").forEach((toggle) => {
+    const panelId = toggle.dataset.panelToggle;
+    const panel = document.getElementById(panelId);
+
+    const apply = () => {
+      const isCollapsed = collapsed.has(panelId);
+      panel.classList.toggle("panel--collapsed", isCollapsed);
+      toggle.setAttribute("aria-expanded", String(!isCollapsed));
+    };
+
+    toggle.addEventListener("click", () => {
+      if (collapsed.has(panelId)) {
+        collapsed.delete(panelId);
+      } else {
+        collapsed.add(panelId);
+      }
+      apply();
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+      } catch (error) {
+        console.warn("Failed to persist collapsed panels", error);
+      }
+    });
+
+    apply();
+  });
+}
+
 renderDiceRow();
 renderBonusRow();
 renderGroupRow();
 syncPile();
+setupPanelToggles();
