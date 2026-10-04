@@ -162,12 +162,32 @@ body {
   max-width: 240px;
 }
 
+.totals-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--panel);
+}
+
+.totals-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.totals-panel__title {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .dice-totals {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--line);
 }
 
 .dice-totals__empty {
@@ -195,9 +215,15 @@ body {
 }
 
 .total-chip--selected {
-  background: color-mix(in srgb, var(--chip-color) 45%, var(--card));
+  background: color-mix(in srgb, var(--chip-color) 88%, #000);
   border-color: var(--chip-color);
   box-shadow: 0 0 0 1px var(--chip-color);
+  color: #0a1220;
+}
+
+.total-chip--selected .total-chip__label {
+  background: #0a1220;
+  color: var(--chip-color);
 }
 
 .total-chip--combined {
@@ -549,7 +575,8 @@ body {
     gap: 8px;
   }
 
-  .button-panel {
+  .button-panel,
+  .totals-panel {
     padding: 10px;
     gap: 8px;
   }
