@@ -113,6 +113,7 @@ body {
   padding-bottom: 12px;
 }
 
+.preset-save,
 .sort-button,
 .duplicate-button,
 .halve-button,
@@ -129,6 +130,7 @@ body {
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
+.preset-save:hover,
 .sort-button:hover,
 .duplicate-button:hover,
 .halve-button:hover,
@@ -162,7 +164,8 @@ body {
   max-width: 240px;
 }
 
-.totals-panel {
+.totals-panel,
+.presets-panel {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -173,13 +176,15 @@ body {
   background: var(--panel);
 }
 
-.totals-panel__header {
+.totals-panel__header,
+.presets-panel__header {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.totals-panel__title {
+.totals-panel__title,
+.presets-panel__title {
   color: var(--muted);
   font-size: 0.85rem;
 }
@@ -406,6 +411,7 @@ body {
 
 .dice-button,
 .bonus-button,
+.preset-button,
 .group-button {
   flex: 1;
   display: flex;
@@ -425,12 +431,14 @@ body {
 
 .dice-button:active,
 .bonus-button:active,
+.preset-button:active,
 .group-button:active {
   transform: scale(0.94);
 }
 
 .dice-button:hover,
-.bonus-button:hover {
+.bonus-button:hover,
+.preset-button:hover {
   border-color: var(--line);
   background: var(--card-2, rgba(20, 34, 57, 0.96));
 }
@@ -466,6 +474,15 @@ body {
   border-color: var(--group-color);
   background: color-mix(in srgb, var(--group-color) 55%, var(--card));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color) 60%, transparent);
+}
+
+.preset-button {
+  flex: 1 1 72px;
+  padding: 0 10px;
+}
+
+.preset-save {
+  margin-left: auto;
 }
 
 .bonus-button__value {
@@ -563,6 +580,7 @@ body {
 
   .dice-button,
   .bonus-button,
+  .preset-button,
   .group-button {
     height: 44px;
     font-size: 0.9rem;
@@ -576,7 +594,8 @@ body {
   }
 
   .button-panel,
-  .totals-panel {
+  .totals-panel,
+  .presets-panel {
     padding: 10px;
     gap: 8px;
   }
