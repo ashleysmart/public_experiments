@@ -2,6 +2,8 @@ const DICE_ROW_SIDES = [20, 12, 10, 8, 6, 4];
 const STORAGE_KEY = "dice-forge-tray-v1";
 const COLLAPSED_KEY = "dice-forge-collapsed-v1";
 const LONG_PRESS_MS = 480;
+const HISTORY_LIMIT = 50;
+const HISTORY_RECORD_DELAY_MS = 1500;
 const PRESS_MOVE_TOLERANCE = 8;
 
 // Spin duration must match the .dice-tile--rolling animation in styles.css —
@@ -42,6 +44,9 @@ const rerollButton = document.querySelector("#reroll-button");
 const clearButton = document.querySelector("#clear-button");
 const presetRowEl = document.querySelector("#preset-row");
 const presetSaveButton = document.querySelector("#preset-save-button");
+const historyListEl = document.querySelector("#history-list");
+const historyDrawerEl = document.querySelector("#history-drawer");
+const historyTabButton = document.querySelector("#history-tab");
 const popoverEl = document.querySelector("#editor-popover");
 
 function createDefaultGroups() {
@@ -67,6 +72,7 @@ function createDefaultState() {
     bonusTokens: createDefaultBonusTokens(),
     entries: [],
     presets: [],
+    history: [],
   };
 }
 
@@ -143,23 +149,68 @@ function loadState() {
           }))
       : [];
 
+    const history = Array.isArray(parsed.history)
+      ? parsed.history
+          .filter((item) => item && Array.isArray(item.entries) && item.entries.length > 0)
+          .map((item) => ({
+            id: typeof item.id === "string" && item.id ? item.id : createId(),
+            time: Number.isFinite(item.time) ? item.time : Date.now(),
+            entries: item.entries
+              .filter(
+                (entry) =>
+                  entry &&
+                  (entry.kind === "die" || entry.kind === "token") &&
+                  Number.isFinite(entry.value)
+              )
+              .map((entry) => ({
+                kind: entry.kind,
+                sides: entry.kind === "die" ? Number(entry.sides) : undefined,
+                value: Math.trunc(entry.value),
+                groupId: groupIds.has(entry.groupId) ? entry.groupId : groups[0].id,
+              })),
+            sums: Array.isArray(item.sums)
+              ? item.sums
+                  .filter((sum) => sum && Number.isFinite(sum.sum))
+                  .map((sum) => ({
+                    label: typeof sum.label === "string" ? sum.label.slice(0, 4) : "?",
+                    color:
+                      typeof sum.color === "string" && /^#[0-9a-f]{6}$/i.test(sum.color)
+                        ? sum.color.toLowerCase()
+                        : GROUP_PALETTE[0],
+                    sum: Math.trunc(sum.sum),
+                  }))
+              : [],
+          }))
+          .filter((item) => item.entries.length > 0)
+          .slice(0, HISTORY_LIMIT)
+      : [];
+
     return {
       activeGroupId: groupIds.has(parsed.activeGroupId) ? parsed.activeGroupId : groups[0].id,
       groups,
       bonusTokens,
       entries,
       presets,
+      history,
     };
   } catch {
     return createDefaultState();
   }
 }
 
+let recordingHistory = false;
+let historyTimer = null;
+
 function saveState() {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (error) {
     console.warn("Failed to persist tray state", error);
+  }
+  // Every pile change goes through saveState, so use it as the trigger for
+  // recording a history snapshot once the pile has settled.
+  if (!recordingHistory) {
+    scheduleHistoryRecord();
   }
 }
 
@@ -382,6 +433,151 @@ function openBonusEditor(anchorEl, token) {
     popover.append(buildPopoverField("Value", valueInput), deleteButton);
     window.requestAnimationFrame(() => valueInput.focus());
   });
+}
+
+function entriesSignature(entries) {
+  return entries
+    .map((entry) => `${entry.kind}:${entry.sides ?? ""}:${entry.value}:${entry.groupId}`)
+    .join("|");
+}
+
+function scheduleHistoryRecord() {
+  window.clearTimeout(historyTimer);
+  historyTimer = window.setTimeout(recordHistory, HISTORY_RECORD_DELAY_MS);
+}
+
+// Snapshots the settled pile (rolls plus per-group sums). A pile identical to
+// one already in the history is skipped, so loading an old entry doesn't copy it.
+function recordHistory() {
+  historyTimer = null;
+  if (state.entries.length === 0) {
+    return;
+  }
+  const signature = entriesSignature(state.entries);
+  if (state.history.some((item) => entriesSignature(item.entries) === signature)) {
+    return;
+  }
+
+  const sums = new Map();
+  state.entries.forEach((entry) => {
+    sums.set(entry.groupId, (sums.get(entry.groupId) ?? 0) + entry.value);
+  });
+
+  state.history.unshift({
+    id: createId(),
+    time: Date.now(),
+    entries: state.entries.map((entry) => ({
+      kind: entry.kind,
+      sides: entry.sides,
+      value: entry.value,
+      groupId: entry.groupId,
+    })),
+    sums: state.groups
+      .filter((group) => sums.has(group.id))
+      .map((group) => ({ label: group.label, color: group.color, sum: sums.get(group.id) })),
+  });
+  state.history.length = Math.min(state.history.length, HISTORY_LIMIT);
+
+  recordingHistory = true;
+  saveState();
+  recordingHistory = false;
+  renderHistory();
+}
+
+function loadHistoryItem(itemId) {
+  const item = state.history.find((entry) => entry.id === itemId);
+  if (!item) {
+    return;
+  }
+  state.entries = item.entries.map((entry) => ({
+    id: createId(),
+    kind: entry.kind,
+    sides: entry.sides,
+    value: entry.value,
+    groupId: findGroup(entry.groupId) ? entry.groupId : state.groups[0].id,
+  }));
+  saveState();
+  syncPile();
+}
+
+function removeHistoryItem(itemId) {
+  state.history = state.history.filter((entry) => entry.id !== itemId);
+  recordingHistory = true;
+  saveState();
+  recordingHistory = false;
+  renderHistory();
+}
+
+function openHistoryEditor(anchorEl, item) {
+  openPopover(anchorEl, (popover) => {
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "popover__delete";
+    deleteButton.textContent = "Delete entry";
+    deleteButton.addEventListener("click", () => {
+      removeHistoryItem(item.id);
+      closePopover();
+    });
+    popover.append(deleteButton);
+  });
+}
+
+function setHistoryOpen(open) {
+  historyDrawerEl.classList.toggle("history-drawer--open", open);
+  historyTabButton.setAttribute("aria-expanded", String(open));
+}
+
+function formatHistoryRolls(entries) {
+  return entries
+    .map((entry) =>
+      entry.kind === "die" ? `d${entry.sides}:${entry.value}` : formatBonusValue(entry.value)
+    )
+    .join(" ");
+}
+
+function renderHistory() {
+  historyListEl.innerHTML = "";
+
+  state.history.forEach((item) => {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "history-item";
+
+    const time = document.createElement("span");
+    time.className = "history-item__time";
+    time.textContent = new Date(item.time).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const rolls = document.createElement("span");
+    rolls.className = "history-item__rolls";
+    rolls.textContent = formatHistoryRolls(item.entries);
+
+    const sums = document.createElement("span");
+    sums.className = "history-item__sums";
+    item.sums.forEach((sum) => {
+      const chip = document.createElement("span");
+      chip.className = "history-item__sum";
+      chip.style.setProperty("--chip-color", sum.color);
+      chip.textContent = `${sum.label} ${sum.sum}`;
+      sums.appendChild(chip);
+    });
+
+    row.append(time, rolls, sums);
+    bindPressActions(row, {
+      onTap: () => loadHistoryItem(item.id),
+      onLongPress: () => openHistoryEditor(row, item),
+    });
+    historyListEl.appendChild(row);
+  });
+
+  if (!state.history.length) {
+    const empty = document.createElement("p");
+    empty.className = "dice-totals__empty";
+    empty.textContent = "Rolls are recorded here once the pile settles.";
+    historyListEl.appendChild(empty);
+  }
 }
 
 function openPresetEditor(anchorEl, preset) {
@@ -983,6 +1179,23 @@ halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 presetSaveButton.addEventListener("click", savePreset);
+historyTabButton.addEventListener("click", () => {
+  setHistoryOpen(!historyDrawerEl.classList.contains("history-drawer--open"));
+});
+document.addEventListener("pointerdown", (event) => {
+  if (
+    historyDrawerEl.classList.contains("history-drawer--open") &&
+    !historyDrawerEl.contains(event.target) &&
+    !popoverEl.contains(event.target)
+  ) {
+    setHistoryOpen(false);
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setHistoryOpen(false);
+  }
+});
 
 function loadCollapsedPanels() {
   try {
@@ -1028,5 +1241,6 @@ renderDiceRow();
 renderBonusRow();
 renderGroupRow();
 renderPresetRow();
+renderHistory();
 syncPile();
 setupPanelToggles();
