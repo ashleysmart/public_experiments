@@ -46,6 +46,7 @@ const presetRowEl = document.querySelector("#preset-row");
 const presetSaveButton = document.querySelector("#preset-save-button");
 const historyListEl = document.querySelector("#history-list");
 const historyDrawerEl = document.querySelector("#history-drawer");
+const historyClearButton = document.querySelector("#history-clear-button");
 const historyTabButton = document.querySelector("#history-tab");
 const popoverEl = document.querySelector("#editor-popover");
 
@@ -504,6 +505,17 @@ function loadHistoryItem(itemId) {
   syncPile();
 }
 
+function clearHistory() {
+  if (state.history.length === 0 || !window.confirm("Delete all roll history?")) {
+    return;
+  }
+  state.history = [];
+  recordingHistory = true;
+  saveState();
+  recordingHistory = false;
+  renderHistory();
+}
+
 function removeHistoryItem(itemId) {
   state.history = state.history.filter((entry) => entry.id !== itemId);
   recordingHistory = true;
@@ -541,6 +553,7 @@ function formatHistoryRolls(entries) {
 
 function renderHistory() {
   historyListEl.innerHTML = "";
+  historyClearButton.disabled = state.history.length === 0;
 
   state.history.forEach((item) => {
     const row = document.createElement("button");
@@ -1319,6 +1332,7 @@ halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 presetSaveButton.addEventListener("click", savePreset);
+historyClearButton.addEventListener("click", clearHistory);
 historyTabButton.addEventListener("click", () => {
   setHistoryOpen(!historyDrawerEl.classList.contains("history-drawer--open"));
 });

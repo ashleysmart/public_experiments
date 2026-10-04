@@ -531,8 +531,33 @@ body {
 }
 
 .history-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.history-clear {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: rgba(11, 19, 33, 0.6);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.history-clear:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.history-clear:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* The tab hangs off the drawer's left edge so it stays reachable while closed. */
