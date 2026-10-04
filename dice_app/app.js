@@ -45,6 +45,8 @@ const clearButton = document.querySelector("#clear-button");
 const presetRowEl = document.querySelector("#preset-row");
 const presetSaveButton = document.querySelector("#preset-save-button");
 const historyListEl = document.querySelector("#history-list");
+const historyDrawerEl = document.querySelector("#history-drawer");
+const historyTabButton = document.querySelector("#history-tab");
 const popoverEl = document.querySelector("#editor-popover");
 
 function createDefaultGroups() {
@@ -518,6 +520,11 @@ function openHistoryEditor(anchorEl, item) {
     });
     popover.append(deleteButton);
   });
+}
+
+function setHistoryOpen(open) {
+  historyDrawerEl.classList.toggle("history-drawer--open", open);
+  historyTabButton.setAttribute("aria-expanded", String(open));
 }
 
 function formatHistoryRolls(entries) {
@@ -1172,6 +1179,23 @@ halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
 presetSaveButton.addEventListener("click", savePreset);
+historyTabButton.addEventListener("click", () => {
+  setHistoryOpen(!historyDrawerEl.classList.contains("history-drawer--open"));
+});
+document.addEventListener("pointerdown", (event) => {
+  if (
+    historyDrawerEl.classList.contains("history-drawer--open") &&
+    !historyDrawerEl.contains(event.target) &&
+    !popoverEl.contains(event.target)
+  ) {
+    setHistoryOpen(false);
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setHistoryOpen(false);
+  }
+});
 
 function loadCollapsedPanels() {
   try {
