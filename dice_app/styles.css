@@ -65,6 +65,54 @@ body {
   padding: 12px 14px 0;
 }
 
+.panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(11, 19, 33, 0.6);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.panel-toggle::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.panel-toggle[aria-expanded="false"]::before {
+  transform: translateX(-2px) rotate(-45deg);
+}
+
+.panel-toggle:hover {
+  color: var(--text);
+  border-color: var(--line);
+  background: rgba(11, 19, 33, 0.85);
+}
+
+.panel--collapsed > :not([data-panel-header]) {
+  display: none;
+}
+
+.dice-panel.panel--collapsed {
+  flex: none;
+}
+
+.dice-panel.panel--collapsed .dice-panel__header {
+  padding-bottom: 12px;
+}
+
 .sort-button,
 .duplicate-button,
 .halve-button,
@@ -282,6 +330,17 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   background: var(--panel);
+}
+
+.button-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button-panel__title {
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .button-row {

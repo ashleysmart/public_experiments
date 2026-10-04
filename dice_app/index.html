@@ -8,8 +8,9 @@
   </head>
   <body>
     <div class="app-shell">
-      <section class="dice-panel" aria-label="Dice tray">
-        <div class="dice-panel__header">
+      <section id="dice-panel" class="dice-panel" aria-label="Dice tray">
+        <div class="dice-panel__header" data-panel-header>
+          <button class="panel-toggle" type="button" data-panel-toggle="dice-panel" aria-label="Toggle dice tray" aria-expanded="true"></button>
           <button id="sort-button" class="sort-button" type="button">Sort</button>
           <button id="duplicate-button" class="duplicate-button" type="button" aria-label="Duplicate dice">2x</button>
           <button id="halve-button" class="halve-button" type="button" aria-label="Halve dice">1/2</button>
@@ -20,7 +21,11 @@
         <div id="dice-totals" class="dice-totals"></div>
       </section>
 
-      <section class="button-panel" aria-label="Roll controls">
+      <section id="button-panel" class="button-panel" aria-label="Roll controls">
+        <div class="button-panel__header" data-panel-header>
+          <button class="panel-toggle" type="button" data-panel-toggle="button-panel" aria-label="Toggle roll controls" aria-expanded="true"></button>
+          <span class="button-panel__title">Roll controls</span>
+        </div>
         <div id="dice-row" class="button-row button-row--dice" role="group" aria-label="Dice"></div>
         <div id="bonus-row" class="button-row button-row--bonus" role="group" aria-label="Bonus tokens"></div>
         <div id="group-row" class="button-row button-row--group" role="group" aria-label="Groups"></div>

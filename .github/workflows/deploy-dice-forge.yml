@@ -7,7 +7,7 @@ on:
       - dice_app
     paths:
       - "dice_app/**"
-      - ".github/workflows/deploy-dice-app-pages.yml"
+      - ".github/workflows/deploy-dice-forge.yml"
   workflow_dispatch:
 
 permissions:
