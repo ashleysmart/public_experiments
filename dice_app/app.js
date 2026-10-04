@@ -133,6 +133,10 @@ function loadState() {
               typeof preset.label === "string" && preset.label.trim()
                 ? preset.label.trim().slice(0, 12)
                 : `P${index + 1}`,
+            color:
+              typeof preset.color === "string" && /^#[0-9a-f]{6}$/i.test(preset.color.trim())
+                ? preset.color.trim().toLowerCase()
+                : GROUP_PALETTE[index % GROUP_PALETTE.length],
             entries: preset.entries
               .filter(
                 (entry) =>
@@ -596,6 +600,13 @@ function openPresetEditor(anchorEl, preset) {
       labelInput.value = preset.label;
     });
 
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = preset.color;
+    colorInput.addEventListener("input", () => {
+      updatePreset(preset.id, { color: colorInput.value });
+    });
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "popover__delete";
@@ -605,7 +616,11 @@ function openPresetEditor(anchorEl, preset) {
       closePopover();
     });
 
-    popover.append(buildPopoverField("Name", labelInput), deleteButton);
+    popover.append(
+      buildPopoverField("Color", colorInput),
+      buildPopoverField("Name", labelInput),
+      deleteButton
+    );
     window.requestAnimationFrame(() => labelInput.focus());
   });
 }
@@ -628,6 +643,7 @@ function savePreset() {
   state.presets.push({
     id: createId(),
     label: nextPresetLabel(),
+    color: GROUP_PALETTE[state.presets.length % GROUP_PALETTE.length],
     entries: state.entries.map((entry) => ({
       kind: entry.kind,
       sides: entry.sides,
@@ -667,6 +683,7 @@ function updatePreset(presetId, changes) {
   const button = presetButtons.get(presetId);
   if (button) {
     button.textContent = preset.label;
+    button.style.setProperty("--preset-color", preset.color);
   }
 }
 
@@ -1091,6 +1108,86 @@ function buildAddButton(className, label, onClick) {
   return button;
 }
 
+// Drag-to-reorder for a preset button. Moving past the press tolerance turns the
+// gesture into a drag (which also cancels the long-press timer in bindPressActions);
+// the button is moved around the row live and the new order is saved on release.
+function bindPresetDrag(button) {
+  let startX = 0;
+  let startY = 0;
+  let pointerId = null;
+  let dragging = false;
+  let dropped = false;
+
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    dragging = false;
+  });
+
+  button.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== pointerId) {
+      return;
+    }
+    if (!dragging) {
+      if (
+        Math.abs(event.clientX - startX) <= PRESS_MOVE_TOLERANCE &&
+        Math.abs(event.clientY - startY) <= PRESS_MOVE_TOLERANCE
+      ) {
+        return;
+      }
+      dragging = true;
+      try {
+        button.setPointerCapture(pointerId);
+      } catch {
+        // Capture is best-effort; reordering still works while the pointer stays over the row.
+      }
+      button.classList.add("preset-button--dragging");
+    }
+
+    const under = document.elementFromPoint(event.clientX, event.clientY);
+    const target = under?.closest(".preset-button");
+    if (!target || target === button || !presetRowEl.contains(target)) {
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const before = event.clientX < rect.left + rect.width / 2;
+    presetRowEl.insertBefore(button, before ? target : target.nextSibling);
+  });
+
+  const finish = (event) => {
+    if (event.pointerId !== pointerId) {
+      return;
+    }
+    pointerId = null;
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    dropped = true;
+    window.setTimeout(() => {
+      dropped = false;
+    }, 0);
+    button.classList.remove("preset-button--dragging");
+
+    const order = [...presetRowEl.querySelectorAll(".preset-button")].map(
+      (el) => el.dataset.presetId
+    );
+    state.presets.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    saveState();
+  };
+  button.addEventListener("pointerup", finish);
+  button.addEventListener("pointercancel", finish);
+
+  return {
+    // The click that follows a drag must not also add the preset to the pile.
+    consumeDrop: () => dropped,
+  };
+}
+
 function renderPresetRow() {
   presetRowEl.innerHTML = "";
   presetButtons.clear();
@@ -1100,9 +1197,16 @@ function renderPresetRow() {
     button.type = "button";
     button.className = "preset-button";
     button.textContent = preset.label;
+    button.dataset.presetId = preset.id;
+    button.style.setProperty("--preset-color", preset.color);
 
+    const drag = bindPresetDrag(button);
     bindPressActions(button, {
-      onTap: () => addPresetToPile(preset.id),
+      onTap: () => {
+        if (!drag.consumeDrop()) {
+          addPresetToPile(preset.id);
+        }
+      },
       onLongPress: () => openPresetEditor(button, preset),
     });
 

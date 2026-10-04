@@ -477,8 +477,26 @@ body {
 }
 
 .preset-button {
+  --preset-color: var(--accent);
   flex: 1 1 72px;
   padding: 0 10px;
+  border-color: color-mix(in srgb, var(--preset-color) 45%, var(--line));
+  background: color-mix(in srgb, var(--preset-color) 18%, var(--card));
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.preset-button:hover {
+  border-color: var(--preset-color);
+  background: color-mix(in srgb, var(--preset-color) 28%, var(--card));
+}
+
+.preset-button.preset-button--dragging {
+  border-color: var(--preset-color);
+  background: color-mix(in srgb, var(--preset-color) 55%, var(--card));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--preset-color) 60%, transparent);
+  transform: scale(1.04);
 }
 
 .preset-save {
