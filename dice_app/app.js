@@ -135,6 +135,7 @@ function saveState() {
 }
 
 const state = loadState();
+const selectedTotalGroupIds = new Set();
 const pileTiles = new Map();
 const groupButtons = new Map();
 const bonusButtons = new Map();
@@ -676,14 +677,33 @@ function renderTotals() {
     sums.set(entry.groupId, (sums.get(entry.groupId) ?? 0) + entry.value);
   });
 
+  // Drop selections for groups that no longer have a total (cleared, deleted, etc.).
+  [...selectedTotalGroupIds].forEach((groupId) => {
+    if (!sums.has(groupId)) {
+      selectedTotalGroupIds.delete(groupId);
+    }
+  });
+
   totalsEl.innerHTML = "";
   state.groups.forEach((group) => {
     if (!sums.has(group.id)) {
       return;
     }
-    const chip = document.createElement("div");
-    chip.className = "total-chip";
+    const selected = selectedTotalGroupIds.has(group.id);
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "total-chip total-chip--selectable";
+    chip.classList.toggle("total-chip--selected", selected);
+    chip.setAttribute("aria-pressed", String(selected));
     chip.style.setProperty("--chip-color", group.color);
+    chip.addEventListener("click", () => {
+      if (selectedTotalGroupIds.has(group.id)) {
+        selectedTotalGroupIds.delete(group.id);
+      } else {
+        selectedTotalGroupIds.add(group.id);
+      }
+      renderTotals();
+    });
 
     const label = document.createElement("span");
     label.className = "total-chip__label";
@@ -696,6 +716,27 @@ function renderTotals() {
     chip.append(label, value);
     totalsEl.appendChild(chip);
   });
+
+  if (selectedTotalGroupIds.size > 0) {
+    let combined = 0;
+    selectedTotalGroupIds.forEach((groupId) => {
+      combined += sums.get(groupId);
+    });
+
+    const chip = document.createElement("div");
+    chip.className = "total-chip total-chip--combined";
+
+    const label = document.createElement("span");
+    label.className = "total-chip__label";
+    label.textContent = "Σ";
+
+    const value = document.createElement("strong");
+    value.className = "total-chip__value";
+    value.textContent = String(combined);
+
+    chip.append(label, value);
+    totalsEl.appendChild(chip);
+  }
 
   if (!totalsEl.children.length) {
     const empty = document.createElement("p");
