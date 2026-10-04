@@ -784,6 +784,7 @@ function syncPile() {
     dicePileEl.classList.remove("dice-pile--empty");
   }
 
+  presetSaveButton.disabled = state.entries.length === 0;
   renderTotals();
 }
 

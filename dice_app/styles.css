@@ -485,6 +485,11 @@ body {
   margin-left: auto;
 }
 
+.preset-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .bonus-button__value {
   font-size: 1rem;
 }
