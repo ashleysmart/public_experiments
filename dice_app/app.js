@@ -40,6 +40,8 @@ const duplicateButton = document.querySelector("#duplicate-button");
 const halveButton = document.querySelector("#halve-button");
 const rerollButton = document.querySelector("#reroll-button");
 const clearButton = document.querySelector("#clear-button");
+const presetRowEl = document.querySelector("#preset-row");
+const presetSaveButton = document.querySelector("#preset-save-button");
 const popoverEl = document.querySelector("#editor-popover");
 
 function createDefaultGroups() {
@@ -64,6 +66,7 @@ function createDefaultState() {
     groups,
     bonusTokens: createDefaultBonusTokens(),
     entries: [],
+    presets: [],
   };
 }
 
@@ -115,11 +118,37 @@ function loadState() {
           }))
       : [];
 
+    const presets = Array.isArray(parsed.presets)
+      ? parsed.presets
+          .filter((preset) => preset && Array.isArray(preset.entries))
+          .map((preset, index) => ({
+            id: typeof preset.id === "string" && preset.id ? preset.id : createId(),
+            label:
+              typeof preset.label === "string" && preset.label.trim()
+                ? preset.label.trim().slice(0, 12)
+                : `P${index + 1}`,
+            entries: preset.entries
+              .filter(
+                (entry) =>
+                  entry &&
+                  ((entry.kind === "die" && Number.isFinite(entry.sides)) ||
+                    (entry.kind === "token" && Number.isFinite(entry.value)))
+              )
+              .map((entry) => ({
+                kind: entry.kind,
+                sides: entry.kind === "die" ? Number(entry.sides) : undefined,
+                value: entry.kind === "token" ? Math.trunc(entry.value) : undefined,
+                groupId: groupIds.has(entry.groupId) ? entry.groupId : groups[0].id,
+              })),
+          }))
+      : [];
+
     return {
       activeGroupId: groupIds.has(parsed.activeGroupId) ? parsed.activeGroupId : groups[0].id,
       groups,
       bonusTokens,
       entries,
+      presets,
     };
   } catch {
     return createDefaultState();
@@ -139,6 +168,7 @@ const selectedTotalGroupIds = new Set();
 const pileTiles = new Map();
 const groupButtons = new Map();
 const bonusButtons = new Map();
+const presetButtons = new Map();
 
 function findGroup(groupId) {
   return state.groups.find((group) => group.id === groupId) ?? state.groups[0];
@@ -352,6 +382,102 @@ function openBonusEditor(anchorEl, token) {
     popover.append(buildPopoverField("Value", valueInput), deleteButton);
     window.requestAnimationFrame(() => valueInput.focus());
   });
+}
+
+function openPresetEditor(anchorEl, preset) {
+  openPopover(anchorEl, (popover) => {
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.maxLength = 12;
+    labelInput.value = preset.label;
+    labelInput.addEventListener("input", () => {
+      const label = labelInput.value.trim().slice(0, 12);
+      if (label) {
+        updatePreset(preset.id, { label });
+      }
+    });
+    labelInput.addEventListener("blur", () => {
+      labelInput.value = preset.label;
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "popover__delete";
+    deleteButton.textContent = "Delete preset";
+    deleteButton.addEventListener("click", () => {
+      removePreset(preset.id);
+      closePopover();
+    });
+
+    popover.append(buildPopoverField("Name", labelInput), deleteButton);
+    window.requestAnimationFrame(() => labelInput.focus());
+  });
+}
+
+function nextPresetLabel() {
+  const used = new Set(state.presets.map((preset) => preset.label));
+  let index = 1;
+  while (used.has(`P${index}`)) {
+    index += 1;
+  }
+  return `P${index}`;
+}
+
+// A preset remembers which dice/tokens were in the pile and which group each
+// belonged to — not the rolled values, so loading a preset rolls the dice fresh.
+function savePreset() {
+  if (state.entries.length === 0) {
+    return;
+  }
+  state.presets.push({
+    id: createId(),
+    label: nextPresetLabel(),
+    entries: state.entries.map((entry) => ({
+      kind: entry.kind,
+      sides: entry.sides,
+      value: entry.kind === "token" ? entry.value : undefined,
+      groupId: entry.groupId,
+    })),
+  });
+  saveState();
+  renderPresetRow();
+}
+
+function addPresetToPile(presetId) {
+  const preset = state.presets.find((item) => item.id === presetId);
+  if (!preset) {
+    return;
+  }
+  const fallbackGroupId = state.groups[0].id;
+  const added = preset.entries.map((entry) => ({
+    id: createId(),
+    kind: entry.kind,
+    sides: entry.sides,
+    value: entry.kind === "die" ? rollDie(entry.sides) : entry.value,
+    groupId: findGroup(entry.groupId) ? entry.groupId : fallbackGroupId,
+  }));
+  state.entries.push(...added);
+  saveState();
+  syncPile();
+}
+
+function updatePreset(presetId, changes) {
+  const preset = state.presets.find((item) => item.id === presetId);
+  if (!preset) {
+    return;
+  }
+  Object.assign(preset, changes);
+  saveState();
+  const button = presetButtons.get(presetId);
+  if (button) {
+    button.textContent = preset.label;
+  }
+}
+
+function removePreset(presetId) {
+  state.presets = state.presets.filter((item) => item.id !== presetId);
+  saveState();
+  renderPresetRow();
 }
 
 function setActiveGroup(groupId) {
@@ -768,6 +894,33 @@ function buildAddButton(className, label, onClick) {
   return button;
 }
 
+function renderPresetRow() {
+  presetRowEl.innerHTML = "";
+  presetButtons.clear();
+
+  state.presets.forEach((preset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "preset-button";
+    button.textContent = preset.label;
+
+    bindPressActions(button, {
+      onTap: () => addPresetToPile(preset.id),
+      onLongPress: () => openPresetEditor(button, preset),
+    });
+
+    presetRowEl.appendChild(button);
+    presetButtons.set(preset.id, button);
+  });
+
+  if (!state.presets.length) {
+    const empty = document.createElement("p");
+    empty.className = "dice-totals__empty";
+    empty.textContent = "Build a pile, then tap Save to keep it as a preset.";
+    presetRowEl.appendChild(empty);
+  }
+}
+
 function renderBonusRow() {
   bonusRowEl.innerHTML = "";
   bonusButtons.clear();
@@ -828,6 +981,7 @@ duplicateButton.addEventListener("click", duplicateDicePile);
 halveButton.addEventListener("click", halveDicePile);
 rerollButton.addEventListener("click", rerollPile);
 clearButton.addEventListener("click", clearPile);
+presetSaveButton.addEventListener("click", savePreset);
 
 function loadCollapsedPanels() {
   try {
@@ -872,5 +1026,6 @@ function setupPanelToggles() {
 renderDiceRow();
 renderBonusRow();
 renderGroupRow();
+renderPresetRow();
 syncPile();
 setupPanelToggles();
