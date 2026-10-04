@@ -443,19 +443,20 @@ function savePreset() {
   renderPresetRow();
 }
 
-function loadPreset(presetId) {
+function addPresetToPile(presetId) {
   const preset = state.presets.find((item) => item.id === presetId);
   if (!preset) {
     return;
   }
   const fallbackGroupId = state.groups[0].id;
-  state.entries = preset.entries.map((entry) => ({
+  const added = preset.entries.map((entry) => ({
     id: createId(),
     kind: entry.kind,
     sides: entry.sides,
     value: entry.kind === "die" ? rollDie(entry.sides) : entry.value,
     groupId: findGroup(entry.groupId) ? entry.groupId : fallbackGroupId,
   }));
+  state.entries.push(...added);
   saveState();
   syncPile();
 }
@@ -904,7 +905,7 @@ function renderPresetRow() {
     button.textContent = preset.label;
 
     bindPressActions(button, {
-      onTap: () => loadPreset(preset.id),
+      onTap: () => addPresetToPile(preset.id),
       onLongPress: () => openPresetEditor(button, preset),
     });
 
