@@ -607,6 +607,30 @@ function openPresetEditor(anchorEl, preset) {
       updatePreset(preset.id, { color: colorInput.value });
     });
 
+    const moveRow = document.createElement("div");
+    moveRow.className = "popover__row";
+    const refreshMoveButtons = () => {
+      const index = state.presets.findIndex((item) => item.id === preset.id);
+      moveRow.children[0].disabled = index <= 0;
+      moveRow.children[1].disabled = index === state.presets.length - 1;
+    };
+    [
+      ["<", "Move left", -1],
+      [">", "Move right", 1],
+    ].forEach(([text, label, delta]) => {
+      const moveButton = document.createElement("button");
+      moveButton.type = "button";
+      moveButton.className = "popover__move";
+      moveButton.textContent = text;
+      moveButton.setAttribute("aria-label", label);
+      moveButton.addEventListener("click", () => {
+        movePreset(preset.id, delta);
+        refreshMoveButtons();
+      });
+      moveRow.appendChild(moveButton);
+    });
+    refreshMoveButtons();
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "popover__delete";
@@ -619,6 +643,7 @@ function openPresetEditor(anchorEl, preset) {
     popover.append(
       buildPopoverField("Color", colorInput),
       buildPopoverField("Name", labelInput),
+      moveRow,
       deleteButton
     );
     window.requestAnimationFrame(() => labelInput.focus());
@@ -685,6 +710,23 @@ function updatePreset(presetId, changes) {
     button.textContent = preset.label;
     button.style.setProperty("--preset-color", preset.color);
   }
+}
+
+// Moves a preset one slot left (-1) or right (+1). The existing button element is
+// re-inserted rather than the row rebuilt, so the open editor stays anchored to it.
+function movePreset(presetId, delta) {
+  const index = state.presets.findIndex((item) => item.id === presetId);
+  const target = index + delta;
+  if (index === -1 || target < 0 || target >= state.presets.length) {
+    return;
+  }
+  const [preset] = state.presets.splice(index, 1);
+  state.presets.splice(target, 0, preset);
+  saveState();
+
+  const button = presetButtons.get(presetId);
+  const neighbor = presetButtons.get(state.presets[delta < 0 ? target + 1 : target - 1].id);
+  presetRowEl.insertBefore(button, delta < 0 ? neighbor : neighbor.nextSibling);
 }
 
 function removePreset(presetId) {
@@ -1111,80 +1153,74 @@ function buildAddButton(className, label, onClick) {
 // Drag-to-reorder for a preset button. Moving past the press tolerance turns the
 // gesture into a drag (which also cancels the long-press timer in bindPressActions);
 // the button is moved around the row live and the new order is saved on release.
+// Move/up are tracked on the document rather than via pointer capture, because
+// re-inserting the button into the row mid-drag releases any capture on it.
 function bindPresetDrag(button) {
-  let startX = 0;
-  let startY = 0;
-  let pointerId = null;
-  let dragging = false;
-  let dropped = false;
+  const DROP_CLICK_WINDOW_MS = 400;
+  let droppedAt = -Infinity;
 
   button.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
-    pointerId = event.pointerId;
-    startX = event.clientX;
-    startY = event.clientY;
-    dragging = false;
-  });
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
 
-  button.addEventListener("pointermove", (event) => {
-    if (event.pointerId !== pointerId) {
-      return;
-    }
-    if (!dragging) {
-      if (
-        Math.abs(event.clientX - startX) <= PRESS_MOVE_TOLERANCE &&
-        Math.abs(event.clientY - startY) <= PRESS_MOVE_TOLERANCE
-      ) {
+    const handleMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
         return;
       }
-      dragging = true;
-      try {
-        button.setPointerCapture(pointerId);
-      } catch {
-        // Capture is best-effort; reordering still works while the pointer stays over the row.
+      if (!dragging) {
+        if (
+          Math.abs(moveEvent.clientX - startX) <= PRESS_MOVE_TOLERANCE &&
+          Math.abs(moveEvent.clientY - startY) <= PRESS_MOVE_TOLERANCE
+        ) {
+          return;
+        }
+        dragging = true;
+        button.classList.add("preset-button--dragging");
       }
-      button.classList.add("preset-button--dragging");
-    }
 
-    const under = document.elementFromPoint(event.clientX, event.clientY);
-    const target = under?.closest(".preset-button");
-    if (!target || target === button || !presetRowEl.contains(target)) {
-      return;
-    }
-    const rect = target.getBoundingClientRect();
-    const before = event.clientX < rect.left + rect.width / 2;
-    presetRowEl.insertBefore(button, before ? target : target.nextSibling);
+      const under = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+      const target = under?.closest(".preset-button");
+      if (!target || target === button || !presetRowEl.contains(target)) {
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const before = moveEvent.clientX < rect.left + rect.width / 2;
+      presetRowEl.insertBefore(button, before ? target : target.nextSibling);
+    };
+
+    const stop = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) {
+        return;
+      }
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+      if (!dragging) {
+        return;
+      }
+      droppedAt = performance.now();
+      button.classList.remove("preset-button--dragging");
+
+      const order = [...presetRowEl.querySelectorAll(".preset-button")].map(
+        (el) => el.dataset.presetId
+      );
+      state.presets.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      saveState();
+    };
+
+    document.addEventListener("pointermove", handleMove);
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
   });
-
-  const finish = (event) => {
-    if (event.pointerId !== pointerId) {
-      return;
-    }
-    pointerId = null;
-    if (!dragging) {
-      return;
-    }
-    dragging = false;
-    dropped = true;
-    window.setTimeout(() => {
-      dropped = false;
-    }, 0);
-    button.classList.remove("preset-button--dragging");
-
-    const order = [...presetRowEl.querySelectorAll(".preset-button")].map(
-      (el) => el.dataset.presetId
-    );
-    state.presets.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    saveState();
-  };
-  button.addEventListener("pointerup", finish);
-  button.addEventListener("pointercancel", finish);
 
   return {
     // The click that follows a drag must not also add the preset to the pile.
-    consumeDrop: () => dropped,
+    consumeDrop: () => performance.now() - droppedAt < DROP_CLICK_WINDOW_MS,
   };
 }
 
