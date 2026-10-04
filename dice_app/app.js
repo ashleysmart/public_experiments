@@ -607,6 +607,30 @@ function openPresetEditor(anchorEl, preset) {
       updatePreset(preset.id, { color: colorInput.value });
     });
 
+    const moveRow = document.createElement("div");
+    moveRow.className = "popover__row";
+    const refreshMoveButtons = () => {
+      const index = state.presets.findIndex((item) => item.id === preset.id);
+      moveRow.children[0].disabled = index <= 0;
+      moveRow.children[1].disabled = index === state.presets.length - 1;
+    };
+    [
+      ["<", "Move left", -1],
+      [">", "Move right", 1],
+    ].forEach(([text, label, delta]) => {
+      const moveButton = document.createElement("button");
+      moveButton.type = "button";
+      moveButton.className = "popover__move";
+      moveButton.textContent = text;
+      moveButton.setAttribute("aria-label", label);
+      moveButton.addEventListener("click", () => {
+        movePreset(preset.id, delta);
+        refreshMoveButtons();
+      });
+      moveRow.appendChild(moveButton);
+    });
+    refreshMoveButtons();
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "popover__delete";
@@ -619,6 +643,7 @@ function openPresetEditor(anchorEl, preset) {
     popover.append(
       buildPopoverField("Color", colorInput),
       buildPopoverField("Name", labelInput),
+      moveRow,
       deleteButton
     );
     window.requestAnimationFrame(() => labelInput.focus());
@@ -685,6 +710,23 @@ function updatePreset(presetId, changes) {
     button.textContent = preset.label;
     button.style.setProperty("--preset-color", preset.color);
   }
+}
+
+// Moves a preset one slot left (-1) or right (+1). The existing button element is
+// re-inserted rather than the row rebuilt, so the open editor stays anchored to it.
+function movePreset(presetId, delta) {
+  const index = state.presets.findIndex((item) => item.id === presetId);
+  const target = index + delta;
+  if (index === -1 || target < 0 || target >= state.presets.length) {
+    return;
+  }
+  const [preset] = state.presets.splice(index, 1);
+  state.presets.splice(target, 0, preset);
+  saveState();
+
+  const button = presetButtons.get(presetId);
+  const neighbor = presetButtons.get(state.presets[delta < 0 ? target + 1 : target - 1].id);
+  presetRowEl.insertBefore(button, delta < 0 ? neighbor : neighbor.nextSibling);
 }
 
 function removePreset(presetId) {

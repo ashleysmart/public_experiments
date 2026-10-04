@@ -683,6 +683,33 @@ body {
   border-color: var(--accent);
 }
 
+.popover__row {
+  display: flex;
+  gap: 8px;
+}
+
+.popover__move {
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.popover__move:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--card-2, rgba(20, 34, 57, 0.96));
+}
+
+.popover__move:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .popover__delete {
   border: 1px solid rgba(230, 72, 60, 0.45);
   border-radius: 8px;
